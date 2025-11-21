@@ -1,0 +1,12 @@
+-r base.txt  # Include all base dependencies
+
+# Development & Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.11.0
+isort==5.13.2
+flake8==6.1.0
+autoflake==2.2.0
+
+# Debugging
+ipdb==0.13.13

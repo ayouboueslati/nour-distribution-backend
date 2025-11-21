@@ -1,0 +1,40 @@
+# Core Framework
+fastapi
+uvicorn[standard]
+
+# Database
+sqlalchemy
+psycopg2-binary
+asyncpg
+alembic
+
+# Validation & Settings
+pydantic
+pydantic[email]
+pydantic-settings
+python-dotenv
+email-validator
+
+# Security
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+python-multipart
+
+# Rate Limiting
+slowapi
+redis
+
+# Logging
+structlog
+
+# Email
+aiosmtplib
+jinja2
+
+# PDF
+weasyprint
+
+# Utilities
+anyio
+click
