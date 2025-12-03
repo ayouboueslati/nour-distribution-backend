@@ -35,8 +35,8 @@ async def login(
             detail="Account is deactivated",
         )
     
-    # Create tokens
-    access_token = create_access_token(data={"sub": user.email})
+    # ✅ FIX: Pass user object to include role in token
+    access_token = create_access_token(data={"user": user})
     
     return {
         "access_token": access_token,
