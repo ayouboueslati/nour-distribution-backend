@@ -1,0 +1,61 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<div class="email-container">
+    <div class="header">
+        <div class="logo">NOUR DISTRIBUTION</div>
+        <h1>Commande Soumise avec Succès</h1>
+        <p>Votre commande a bien été enregistrée</p>
+    </div>
+    
+    <div class="content">
+        <h2>Bonjour {{ client_name }},</h2>
+        
+        <div class="success">
+            <p>Nous avons bien reçu votre commande <strong>#{{ order_number }}</strong> du {{ order_date }}.</p>
+        </div>
+        
+        <div class="info-box">
+            <h3 style="margin-bottom: 15px; color: #2c3e50;">Résumé de votre commande</h3>
+            <div class="info-item">
+                <span class="info-label">Numéro de commande:</span>
+                <span class="info-value">{{ order_number }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Date de soumission:</span>
+                <span class="info-value">{{ order_date }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Nombre d'articles:</span>
+                <span class="info-value">{{ items_count }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Quantité totale:</span>
+                <span class="info-value">{{ total_items }} pièces</span>
+            </div>
+        </div>
+        
+        <div class="warning">
+            <p><strong>Important:</strong> Votre commande est maintenant en attente de traitement.</p>
+            <p>Notre équipe va bientôt la traiter et vous enverra un devis avec les prix dans les plus brefs délais.</p>
+        </div>
+        
+        <p style="margin-top: 20px;">
+            Vous pouvez suivre l'avancement de votre commande à tout moment en cliquant sur le bouton ci-dessous :
+        </p>
+        
+        <center>
+            <a href="{{ order_url }}" class="button">Voir ma commande</a>
+        </center>
+        
+        <p style="margin-top: 30px; font-style: italic;">
+            Nous vous remercions pour votre confiance. Pour toute question, n'hésitez pas à nous contacter.
+        </p>
+        
+        <p style="margin-top: 20px;">
+            Cordialement,<br>
+            <strong>L'équipe NOUR DISTRIBUTION</strong>
+        </p>
+    </div>
+</div>
+{% endblock %}

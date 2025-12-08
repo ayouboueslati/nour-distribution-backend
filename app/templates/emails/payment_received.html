@@ -1,0 +1,74 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<div class="email-container">
+    <div class="header">
+        <div class="logo">NOUR DISTRIBUTION</div>
+        <h1>Paiement Reçu</h1>
+        <p>Confirmation de réception de votre paiement</p>
+    </div>
+    
+    <div class="content">
+        <h2>Bonjour {{ client_name }},</h2>
+        
+        <div class="success">
+            <p>Nous avons bien reçu votre paiement pour la facture <strong>{{ facture_number }}</strong>.</p>
+            <p>Merci pour votre règlement rapide !</p>
+        </div>
+        
+        <div class="info-box">
+            <h3 style="margin-bottom: 15px; color: #2c3e50;">Détails du paiement</h3>
+            <div class="info-item">
+                <span class="info-label">Facture:</span>
+                <span class="info-value">{{ facture_number }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Montant payé:</span>
+                <span class="info-value">{{ payment_amount|round(2) }} TND</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Méthode de paiement:</span>
+                <span class="info-value">{{ payment_method }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Date du paiement:</span>
+                <span class="info-value">{{ payment_date }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Montant restant:</span>
+                <span class="info-value">{{ remaining_amount|round(2) }} TND</span>
+            </div>
+        </div>
+        
+        {% if remaining_amount == 0 %}
+        <div class="success">
+            <p><strong>✅ Paiement complet !</strong> Votre facture est maintenant entièrement réglée.</p>
+            <p>Votre commande sera préparée et expédiée selon les délais convenus.</p>
+        </div>
+        {% else %}
+        <div class="warning">
+            <p><strong>⏳ Paiement partiel</strong> - Montant restant à payer : {{ remaining_amount|round(2) }} TND</p>
+            <p>Veuillez régler le solde pour que nous puissions procéder à l'expédition.</p>
+        </div>
+        {% endif %}
+        
+        <center>
+            <a href="{{ receipt_url }}" class="button">Télécharger le reçu</a>
+            <a href="{{ facture_url }}" class="button" style="background: #34495e;">Voir la facture</a>
+        </center>
+        
+        <p style="margin-top: 30px; font-size: 14px; color: #7f8c8d;">
+            <strong>Informations bancaires pour les prochains paiements:</strong><br>
+            Banque: <strong>BIAT</strong><br>
+            IBAN: <strong>TN59 1234 5678 9012 3456 7890</strong><br>
+            BIC: <strong>BIATNTTNXXX</strong><br>
+            Titulaire: <strong>NOUR DISTRIBUTION SARL</strong>
+        </p>
+        
+        <p style="margin-top: 20px;">
+            Cordialement,<br>
+            <strong>Service Comptabilité<br>NOUR DISTRIBUTION</strong>
+        </p>
+    </div>
+</div>
+{% endblock %}

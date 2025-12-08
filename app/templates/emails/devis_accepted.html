@@ -1,0 +1,77 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<div class="email-container">
+    <div class="header">
+        <div class="logo">NOUR DISTRIBUTION</div>
+        <h1>Devis Accepté</h1>
+        <p>Votre devis a été accepté avec succès</p>
+    </div>
+    
+    <div class="content">
+        <h2>Bonjour {{ client_name }},</h2>
+        
+        <div class="success">
+            <p>Nous avons bien enregistré votre acceptation du devis <strong>{{ devis_number }}</strong>.</p>
+            <p>Une facture a été générée et votre commande est maintenant en cours de traitement.</p>
+        </div>
+        
+        <div class="info-box">
+            <h3 style="margin-bottom: 15px; color: #2c3e50;">Informations</h3>
+            <div class="info-item">
+                <span class="info-label">Numéro du devis:</span>
+                <span class="info-value">{{ devis_number }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Numéro de facture:</span>
+                <span class="info-value">{{ facture_number }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Date d'acceptation:</span>
+                <span class="info-value">{{ accepted_date }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Montant total:</span>
+                <span class="info-value">{{ total_amount|round(2) }} TND</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Date d'échéance:</span>
+                <span class="info-value">{{ due_date }}</span>
+            </div>
+        </div>
+        
+        <div class="amount">
+            À payer: {{ total_amount|round(2) }} TND
+        </div>
+        
+        <div class="warning">
+            <p><strong>Instructions de paiement:</strong></p>
+            <ul style="margin-left: 20px; margin-top: 10px;">
+                <li>Le paiement est dû avant l'expédition</li>
+                <li>Veuillez régler la facture pour activer la préparation</li>
+                <li>Consultez la facture pour les informations bancaires</li>
+            </ul>
+        </div>
+        
+        <center>
+            <a href="{{ facture_url }}" class="button">Voir la facture</a>
+            <a href="{{ payment_url }}" class="button" style="background: #27ae60;">
+                Procéder au paiement
+            </a>
+        </center>
+        
+        <p style="margin-top: 30px; font-size: 14px; color: #7f8c8d;">
+            <strong>Rappel des informations bancaires:</strong><br>
+            Banque: <strong>BIAT</strong><br>
+            IBAN: <strong>TN59 1234 5678 9012 3456 7890</strong><br>
+            BIC: <strong>BIATNTTNXXX</strong><br>
+            Référence: <strong>{{ facture_number }}</strong>
+        </p>
+        
+        <p style="margin-top: 20px;">
+            Cordialement,<br>
+            <strong>Service Comptabilité<br>NOUR DISTRIBUTION</strong>
+        </p>
+    </div>
+</div>
+{% endblock %}

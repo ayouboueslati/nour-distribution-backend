@@ -1,0 +1,65 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<div class="email-container">
+    <div class="header">
+        <div class="logo">NOUR DISTRIBUTION</div>
+        <h1>Commande Confirmée</h1>
+        <p>Votre commande est maintenant en cours de préparation</p>
+    </div>
+    
+    <div class="content">
+        <h2>Bonjour {{ client_name }},</h2>
+        
+        <div class="success">
+            <p>Votre commande <strong>#{{ order_number }}</strong> a été confirmée et est maintenant en cours de préparation.</p>
+        </div>
+        
+        <div class="info-box">
+            <h3 style="margin-bottom: 15px; color: #2c3e50;">Détails de la commande</h3>
+            <div class="info-item">
+                <span class="info-label">Numéro de commande:</span>
+                <span class="info-value">{{ order_number }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Date de confirmation:</span>
+                <span class="info-value">{{ confirmed_date }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Montant total:</span>
+                <span class="info-value">{{ total_amount|round(2) }} TND</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Statut:</span>
+                <span class="info-value">En préparation</span>
+            </div>
+        </div>
+        
+        <div class="warning">
+            <p><strong>Délai de livraison estimé:</strong> 3-5 jours ouvrables</p>
+            <p>Vous recevrez un email avec les informations de suivi dès que votre colis sera expédié.</p>
+        </div>
+        
+        <p>
+            Pour suivre l'avancement de votre commande ou pour toute question :
+        </p>
+        
+        <center>
+            <a href="{{ order_url }}" class="button">Suivre ma commande</a>
+            <a href="https://wa.me/21698765432?text=Commande%20{{ order_number }}" 
+               class="button" style="background: #25D366;">
+                Contacter sur WhatsApp
+            </a>
+        </center>
+        
+        <p style="margin-top: 30px; font-style: italic;">
+            Merci pour votre confiance. Nous faisons notre possible pour vous servir au mieux.
+        </p>
+        
+        <p style="margin-top: 20px;">
+            Cordialement,<br>
+            <strong>Service Logistique<br>NOUR DISTRIBUTION</strong>
+        </p>
+    </div>
+</div>
+{% endblock %}

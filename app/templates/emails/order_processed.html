@@ -1,0 +1,91 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<div class="email-container">
+    <div class="header">
+        <div class="logo">NOUR DISTRIBUTION</div>
+        <h1>Devis Prêt pour Votre Commande</h1>
+        <p>Votre commande a été traitée et un devis est disponible</p>
+    </div>
+    
+    <div class="content">
+        <h2>Bonjour {{ client_name }},</h2>
+        
+        <div class="success">
+            <p>Votre commande <strong>#{{ order_number }}</strong> a été traitée par notre équipe.</p>
+            <p>Nous avons préparé un devis détaillé avec les prix applicables.</p>
+        </div>
+        
+        <div class="info-box">
+            <h3 style="margin-bottom: 15px; color: #2c3e50;">Détails du devis</h3>
+            <div class="info-item">
+                <span class="info-label">Numéro de commande:</span>
+                <span class="info-value">{{ order_number }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Traité par:</span>
+                <span class="info-value">{{ processed_by }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Sous-total:</span>
+                <span class="info-value">{{ subtotal|round(2) }} TND</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Frais de livraison:</span>
+                <span class="info-value">{{ shipping_fee|round(2) }} TND</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">TVA (19%):</span>
+                <span class="info-value">{{ tax_amount|round(2) }} TND</span>
+            </div>
+        </div>
+        
+        <div class="amount">
+            Total: {{ total_amount|round(2) }} TND
+        </div>
+        
+        {% if items %}
+        <h3>Articles inclus:</h3>
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>Produit</th>
+                    <th>Quantité</th>
+                    <th>Prix unitaire</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.product_name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>{{ item.unit_price|round(2) }} TND</td>
+                    <td>{{ (item.quantity * item.unit_price)|round(2) }} TND</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        
+        <div class="warning">
+            <p><strong>Prochaine étape:</strong> Veuillez consulter le devis détaillé et le confirmer.</p>
+            <p>Une fois le devis accepté, nous pourrons procéder à la préparation de votre commande.</p>
+        </div>
+        
+        <center>
+            <a href="{{ devis_url }}" class="button">Consulter le devis</a>
+        </center>
+        
+        <p style="margin-top: 30px; font-style: italic;">
+            Pour modifier votre commande ou pour toute question concernant les prix, 
+            contactez-nous par téléphone ou WhatsApp.
+        </p>
+        
+        <p style="margin-top: 20px;">
+            Cordialement,<br>
+            <strong>L'équipe NOUR DISTRIBUTION</strong>
+        </p>
+    </div>
+</div>
+{% endblock %}

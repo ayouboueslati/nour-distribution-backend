@@ -5,7 +5,13 @@ from .supplier_service import SupplierService
 from .product_service import ProductService
 from .inventory_service import InventoryService
 from .auth_service import AuthService
-
+from .client_service import ClientService
+from .cart_service import CartService
+from .stock_validator import StockValidator
+from .notification_service import NotificationService
+from .pdf_generator import TunisianPDFGenerator
+from .analytics_service import AnalyticsService
+from .payment_tracker import PaymentTracker
 __all__ = [
     "BaseService",
     "UserService", 
@@ -13,5 +19,12 @@ __all__ = [
     "SupplierService",
     "ProductService",
     "InventoryService",
-     "AuthService",
+    "AuthService",
+    "ClientService",
+    "CartService",
+    "StockValidator",
+    "NotificationService",
+    "TunisianPDFGenerator",
+    "AnalyticsService",
+    "PaymentTracker"
 ]

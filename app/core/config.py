@@ -30,6 +30,32 @@ class Settings(BaseSettings):
     
     # Internal API Key (for microservices)
     INTERNAL_API_KEY: str = secrets.token_urlsafe(32)
+
+    # Tunisian Specific
+    TVA_RATE: float = 0.19  # Tunisian VAT is 19%
+    TIMBRE_FISCAL_RATE: float = 0.005  # 0.5% stamp duty
+    PATENTE_REQUIRED: bool = True
+    
+    # Tunisian Bank Info
+    BANK_NAME: str = "Banque de Tunisie"  # Update with actual bank
+    BANK_IBAN: str = "TN59 1234 5678 9012 3456 7890"
+    BANK_SWIFT: str = "BKTUTNTT"
+    
+    # Tunisian Company Info
+    COMPANY_MATRICULE_FISCAL: str = ""
+    COMPANY_REGISTRE_COMMERCE: str = ""
+    COMPANY_IDENTIFIANT_UNIQUE: str = ""
+    
+    # Tunisian Payment Methods
+    ALLOWED_PAYMENT_METHODS: List[str] = [
+        "especes", 
+        "cheque", 
+        "virement", 
+        "carte", 
+        "postal", 
+        "mobile"
+    ]
+    
     
     class Config:
         env_file = ".env"

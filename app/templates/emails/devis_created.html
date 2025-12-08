@@ -1,0 +1,73 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<div class="email-container">
+    <div class="header">
+        <div class="logo">NOUR DISTRIBUTION</div>
+        <h1>Nouveau Devis Disponible</h1>
+        <p>Votre devis est prêt pour consultation</p>
+    </div>
+    
+    <div class="content">
+        <h2>Bonjour {{ client_name }},</h2>
+        
+        <div class="success">
+            <p>Un nouveau devis a été créé pour vous : <strong>{{ devis_number }}</strong></p>
+        </div>
+        
+        <div class="info-box">
+            <h3 style="margin-bottom: 15px; color: #2c3e50;">Informations du devis</h3>
+            <div class="info-item">
+                <span class="info-label">Numéro du devis:</span>
+                <span class="info-value">{{ devis_number }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Date d'émission:</span>
+                <span class="info-value">{{ issue_date }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Date de validité:</span>
+                <span class="info-value">{{ valid_until }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Montant total:</span>
+                <span class="info-value">{{ total_amount|round(2) }} TND</span>
+            </div>
+        </div>
+        
+        <div class="amount">
+            {{ total_amount|round(2) }} TND
+        </div>
+        
+        <p>
+            Ce devis est valable jusqu'au <strong>{{ valid_until }}</strong>. 
+            Après cette date, les prix pourront être révisés.
+        </p>
+        
+        <div class="warning">
+            <p><strong>Instructions importantes:</strong></p>
+            <ul style="margin-left: 20px; margin-top: 10px;">
+                <li>Vérifiez les articles et quantités</li>
+                <li>Consultez les conditions de paiement</li>
+                <li>Confirmez le devis pour passer à la facturation</li>
+            </ul>
+        </div>
+        
+        <center>
+            <a href="{{ devis_url }}" class="button">Voir le devis complet</a>
+            <a href="{{ accept_url }}" class="button" style="background: #27ae60;">Accepter le devis</a>
+        </center>
+        
+        <p style="margin-top: 30px;">
+            Pour toute modification ou question, contactez-nous :
+            <br>
+            📞 <strong>+216 71 123 456</strong> | 📱 <strong>WhatsApp: +216 98 765 432</strong>
+        </p>
+        
+        <p style="margin-top: 20px;">
+            Cordialement,<br>
+            <strong>Service Commercial<br>NOUR DISTRIBUTION</strong>
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -12,6 +12,22 @@ from .inventory import (
     InventoryMovementListResponse, StockLevelResponse, LowStockAlertResponse,
     MovementType
 )
+from .client import ClientCreate, ClientUpdate, ClientResponse, ClientListResponse, ClientTypeEnum
+from .cart import CartItemCreate, CartItemUpdate, CartItemResponse, CartResponse, CartSummary
+from .order import (
+    OrderCreate, OrderFromCart, OrderUpdate, OrderPricing,
+    OrderResponse, OrderListResponse, OrderHistoryResponse,
+    OrderItemCreate, OrderItemUpdate, OrderItemResponse,
+    OrderStatusEnum
+)
+from .document import (
+    DocumentCreate, DocumentUpdate, DevisFromOrder,
+    DocumentResponse, DocumentListResponse,
+    DocumentItemCreate, DocumentItemUpdate, DocumentItemResponse,
+    PaymentCreate, PaymentResponse,
+    DocumentHistoryResponse, AvoirFromFacture,
+    DocumentTypeEnum, DocumentStatusEnum, PaymentStatusEnum
+)
 
 __all__ = [
     # User schemas
@@ -33,4 +49,24 @@ __all__ = [
     # Inventory schemas
     "InventoryMovementCreate", "InventoryMovementResponse", "InventoryMovementListResponse",
     "StockLevelResponse", "LowStockAlertResponse", "MovementType",
+    
+    # Client schemas
+    "ClientCreate", "ClientUpdate", "ClientResponse", "ClientListResponse", "ClientTypeEnum",
+    
+    # Cart schemas
+    "CartItemCreate", "CartItemUpdate", "CartItemResponse", "CartResponse", "CartSummary",
+    
+    # Order schemas
+    "OrderCreate", "OrderFromCart", "OrderUpdate", "OrderPricing",
+    "OrderResponse", "OrderListResponse", "OrderHistoryResponse",
+    "OrderItemCreate", "OrderItemUpdate", "OrderItemResponse",
+    "OrderStatusEnum",
+    
+    # Document schemas
+    "DocumentCreate", "DocumentUpdate", "DevisFromOrder",
+    "DocumentResponse", "DocumentListResponse",
+    "DocumentItemCreate", "DocumentItemUpdate", "DocumentItemResponse",
+    "PaymentCreate", "PaymentResponse",
+    "DocumentHistoryResponse", "AvoirFromFacture",
+    "DocumentTypeEnum", "DocumentStatusEnum", "PaymentStatusEnum",
 ]
