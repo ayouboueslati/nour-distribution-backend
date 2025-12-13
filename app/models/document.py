@@ -27,9 +27,9 @@ class Document(BaseModel):
     __tablename__ = "documents"
     
     # Document identification
-    type = Column(Enum(DocumentType), nullable=False)
+    type = Column(Enum(DocumentType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     document_number = Column(String(100), unique=True, index=True)
-    status = Column(Enum(DocumentStatus), default=DocumentStatus.BROUILLON)
+    status = Column(Enum(DocumentStatus, values_callable=lambda x: [e.value for e in x]), default=DocumentStatus.BROUILLON)
     
     # Relationships
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"))
@@ -51,7 +51,7 @@ class Document(BaseModel):
     total_amount = Column(Float, default=0.0)
     
     # Payment tracking (for factures)
-    payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.NON_PAYE)
+    payment_status = Column(Enum(PaymentStatus, values_callable=lambda x: [e.value for e in x]), default=PaymentStatus.NON_PAYE)
     paid_amount = Column(Float, default=0.0)
     remaining_amount = Column(Float, default=0.0)
     

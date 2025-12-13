@@ -864,3 +864,257 @@ def _get_base_context(self):
         "company_address": "Rue Habib Bourguiba, Tunis 1001, Tunisie",
         "company_website": "https://www.nour-distribution.tn"
     }
+
+def _create_document_info(self, document: Dict) -> List:
+    """Create document info section"""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
+    elements = []
+    
+    doc_info_data = [
+        ["N° Document:", document.get('document_number', '')],
+        ["Date d'émission:", document.get('issue_date', datetime.now()).strftime("%d/%m/%Y") if isinstance(document.get('issue_date'), datetime) else document.get('issue_date', '')],
+    ]
+    
+    if document.get('due_date'):
+        due_date = document['due_date']
+        due_date_str = due_date.strftime("%d/%m/%Y") if isinstance(due_date, datetime) else due_date
+        doc_info_data.append(["Date d'échéance:", due_date_str])
+    
+    doc_info_table = Table(doc_info_data, colWidths=[5*cm, 8*cm])
+    doc_info_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    
+    elements.append(doc_info_table)
+    
+    return elements
+
+
+def _create_terms_section_tunisia(self, document: Dict, is_invoice: bool = False) -> List:
+    """Create terms and conditions section"""
+    from reportlab.platypus import Paragraph, Spacer
+    
+    elements = []
+    
+    elements.append(Paragraph("<b>CONDITIONS GÉNÉRALES</b>", self.styles['Heading2']))
+    elements.append(Spacer(1, 0.5*cm))
+    
+    if is_invoice:
+        terms_text = """
+        <para align=justify>
+        <font size=9>
+        1. Paiement à réception de facture sauf accord préalable<br/>
+        2. Tout retard de paiement entraîne l'application d'intérêts de retard<br/>
+        3. En cas de litige, seuls les tribunaux de Tunis sont compétents<br/>
+        4. Les marchandises voyagent aux risques du destinataire<br/>
+        5. Garantie limitée selon nos conditions générales de vente<br/>
+        </font>
+        </para>
+        """
+    else:
+        terms_text = """
+        <para align=justify>
+        <font size=9>
+        1. Devis valable 30 jours à compter de la date d'émission<br/>
+        2. Prix exprimés en Dinars Tunisiens (TND), TVA incluse<br/>
+        3. Délai de livraison estimé: 7-14 jours ouvrables<br/>
+        4. Conditions de paiement à convenir<br/>
+        5. Réservation de stock sous acceptation du devis<br/>
+        </font>
+        </para>
+        """
+    
+    elements.append(Paragraph(terms_text, self.styles['Normal']))
+    
+    if document.get('terms'):
+        elements.append(Spacer(1, 0.5*cm))
+        elements.append(Paragraph("<b>Notes additionnelles:</b>", self.styles['Heading3']))
+        elements.append(Paragraph(document['terms'], self.styles['Normal']))
+    
+    return elements
+
+
+def _create_signature_section_tunisia(self, is_invoice: bool = False, is_credit_note: bool = False) -> List:
+    """Create signature section"""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
+    elements = []
+    
+    signature_data = [
+        ["Signature du client", "Cachet et signature NOUR DISTRIBUTION"],
+        ["", ""],
+        ["", ""],
+        ["Date: _______________", "Date: _______________"]
+    ]
+    
+    signature_table = Table(signature_data, colWidths=[8*cm, 8*cm])
+    signature_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOX', (0, 0), (0, -1), 1, colors.grey),
+        ('BOX', (1, 0), (1, -1), 1, colors.grey),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+    ]))
+    
+    elements.append(signature_table)
+    
+    return elements
+
+
+def _create_tunisian_legal_section_devis(self, devis: Dict) -> List:
+    """Create legal section for devis"""
+    from reportlab.platypus import Paragraph, Spacer
+    
+    elements = []
+    
+    elements.append(Spacer(1, 1*cm))
+    
+    legal_text = """
+    <para align=justify>
+    <font size=8>
+    <b>MENTIONS LÉGALES:</b><br/>
+    Ce devis est valable 30 jours. Les prix sont exprimés en Dinars Tunisiens TTC.
+    Conformément à la législation tunisienne, ce devis n'engage le vendeur qu'après acceptation écrite du client.
+    La commande ferme ne sera considérée qu'après signature du devis et versement de l'acompte si requis.
+    </font>
+    </para>
+    """
+    
+    elements.append(Paragraph(legal_text, self.styles['LegalNotice']))
+    
+    return elements
+
+
+def _create_avoir_reference_section(self, avoir: Dict) -> List:
+    """Create avoir reference to original facture"""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
+    elements = []
+    
+    elements.append(Paragraph("<b>RÉFÉRENCE</b>", self.styles['Heading2']))
+    
+    if avoir.get('reference_document_id'):
+        ref_data = [
+            ["Facture d'origine:", avoir.get('reference_document_number', 'N/A')],
+            ["Raison:", avoir.get('notes', 'Avoir commercial').split('\n')[0][:100]]
+        ]
+        
+        ref_table = Table(ref_data, colWidths=[5*cm, 10*cm])
+        ref_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F8F9F9')),
+        ]))
+        
+        elements.append(ref_table)
+    
+    return elements
+
+
+def _create_avoir_reason_section(self, avoir: Dict) -> List:
+    """Create reason section for avoir"""
+    from reportlab.platypus import Paragraph, Spacer
+    
+    elements = []
+    
+    elements.append(Spacer(1, 1*cm))
+    elements.append(Paragraph("<b>MOTIF DE L'AVOIR</b>", self.styles['Heading2']))
+    
+    reason_text = avoir.get('notes', 'Avoir commercial')
+    elements.append(Paragraph(reason_text, self.styles['Normal']))
+    
+    return elements
+
+
+def _create_tunisian_legal_section_avoir(self, avoir: Dict) -> List:
+    """Create legal section for avoir"""
+    from reportlab.platypus import Paragraph, Spacer
+    
+    elements = []
+    
+    elements.append(Spacer(1, 1*cm))
+    
+    legal_text = """
+    <para align=justify>
+    <font size=8>
+    <b>MENTIONS LÉGALES - AVOIR:</b><br/>
+    Cet avoir annule partiellement ou totalement la facture référencée ci-dessus.
+    Le montant de l'avoir peut être déduit des factures à venir ou remboursé selon accord.
+    Conforme à la réglementation tunisienne en matière de TVA.
+    </font>
+    </para>
+    """
+    
+    elements.append(Paragraph(legal_text, self.styles['LegalNotice']))
+    
+    return elements
+
+
+def _create_payment_section_tunisia(self, payments: List[Dict], facture: Dict) -> List:
+    """Create payment details section"""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
+    elements = []
+    
+    if not payments:
+        return elements
+    
+    elements.append(Paragraph("<b>PAIEMENTS REÇUS</b>", self.styles['Heading2']))
+    elements.append(Spacer(1, 0.5*cm))
+    
+    payment_data = [["Date", "Montant", "Méthode", "Référence"]]
+    
+    for payment in payments:
+        payment_date = payment['payment_date']
+        date_str = payment_date.strftime("%d/%m/%Y") if isinstance(payment_date, datetime) else payment_date
+        
+        payment_data.append([
+            date_str,
+            f"{payment['amount']:,.3f} DT",
+            payment.get('payment_method', 'N/A'),
+            payment.get('reference_number', '-')
+        ])
+    
+    # Add total row
+    payment_data.append([
+        "<b>TOTAL PAYÉ</b>",
+        f"<b>{facture.get('paid_amount', 0):,.3f} DT</b>",
+        "",
+        ""
+    ])
+    
+    payment_data.append([
+        "<b>RESTE À PAYER</b>",
+        f"<b>{facture.get('remaining_amount', 0):,.3f} DT</b>",
+        "",
+        ""
+    ])
+    
+    payment_table = Table(payment_data, colWidths=[4*cm, 4*cm, 4*cm, 4*cm])
+    payment_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#34495E')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -3), colors.white),
+        ('BACKGROUND', (0, -2), (-1, -1), colors.HexColor('#F8F9F9')),
+        ('FONTNAME', (0, -2), (-1, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+    
+    elements.append(payment_table)
+    elements.append(Spacer(1, 1*cm))
+    
+    return elements

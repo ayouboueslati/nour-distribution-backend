@@ -4,22 +4,52 @@ from uuid import UUID
 from datetime import datetime
 from enum import Enum
 
+from app.schemas.client import ClientResponse
+from app.schemas.product import ProductPublicResponse
+from app.schemas.document import DocumentResponse
+
 # Enums
 class OrderStatusEnum(str, Enum):
-    EN_ATTENTE = "en_attente"
-    EN_TRAITEMENT = "en_traitement"
-    CONFIRME = "confirme"
-    ANNULE = "annule"
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    CONFIRMED = "CONFIRMED"
+    CANCELLED = "CANCELLED"
+    DRAFT = "DRAFT"
+    SHIPPED = "SHIPPED"
+    DELIVERED = "DELIVERED"
 
 # Order Item Schemas
 class OrderItemCreate(BaseModel):
     product_id: UUID
     quantity: int = Field(gt=0)
+    discount_percent: float = Field(default=0.0, ge=0, le=100)
 
 class OrderItemUpdate(BaseModel):
-    quantity: Optional[int] = Field(None, gt=0)
+    """Schema for updating a single order item"""
+    product_id: UUID
+    quantity: int = Field(gt=0)
+    discount_percent: float = Field(default=0.0, ge=0, le=100)
     unit_price: Optional[float] = Field(None, ge=0)
+
+class OrderItemSingleUpdate(BaseModel):
+    """Schema for updating a single order item via direct endpoint (product_id implied)"""
+    product_id: Optional[UUID] = None
+    quantity: Optional[int] = Field(None, gt=0)
     discount_percent: Optional[float] = Field(None, ge=0, le=100)
+    unit_price: Optional[float] = Field(None, ge=0)
+
+class OrderItemsUpdateRequest(BaseModel):
+    """Schema for bulk updating order items"""
+    items: List[OrderItemUpdate]
+
+class OrderAcceptRequest(BaseModel):
+    """Schema for accepting an order"""
+    notes: Optional[str] = None
+
+class OrderRejectRequest(BaseModel):
+    """Schema for rejecting an order"""
+    reason: str = Field(..., min_length=1)
+    notes: Optional[str] = None
 
 class OrderItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -34,7 +64,7 @@ class OrderItemResponse(BaseModel):
     created_at: datetime
     
     # Product details
-    product: Optional[dict] = None
+    product: Optional[ProductPublicResponse] = None
 
 # Order Schemas
 class OrderCreate(BaseModel):
@@ -92,7 +122,8 @@ class OrderResponse(BaseModel):
     updated_at: datetime
     
     items: List[OrderItemResponse] = []
-    client: Optional[dict] = None
+    documents: List['DocumentResponse'] = []
+    client: Optional[ClientResponse] = None
 
 class OrderListResponse(BaseModel):
     orders: List[OrderResponse]

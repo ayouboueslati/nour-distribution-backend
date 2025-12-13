@@ -3,6 +3,8 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 from enum import Enum
+from app.schemas.client import ClientResponse
+from app.schemas.user import UserResponse
 
 # Enums
 class DocumentTypeEnum(str, Enum):
@@ -134,7 +136,7 @@ class DocumentResponse(BaseModel):
     updated_at: datetime
     
     items: List[DocumentItemResponse] = []
-    client: Optional[dict] = None
+    client: Optional[ClientResponse] = None
 
 class DocumentListResponse(BaseModel):
     documents: List[DocumentResponse]
@@ -164,7 +166,7 @@ class PaymentResponse(BaseModel):
     recorded_by: UUID
     created_at: datetime
     
-    user: Optional[dict] = None
+    user: Optional[UserResponse] = None
 
 # Document History Schemas
 class DocumentHistoryResponse(BaseModel):
@@ -179,7 +181,7 @@ class DocumentHistoryResponse(BaseModel):
     new_value: Optional[str] = None
     created_at: datetime
     
-    user: Optional[dict] = None
+    user: Optional[UserResponse] = None
 
 # Avoir (Credit Note) specific schema
 class AvoirFromFacture(BaseModel):

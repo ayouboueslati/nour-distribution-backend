@@ -19,8 +19,7 @@ async def get_categories(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     include_inactive: bool = Query(False, description="Include inactive categories"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """
     Get all categories with pagination
@@ -49,8 +48,7 @@ async def get_categories(
 
 @router.get("/tree", response_model=List[CategoryResponse])
 async def get_category_tree(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """
     Get category hierarchy tree
@@ -69,8 +67,7 @@ async def get_category_tree(
 @router.get("/{category_id}", response_model=CategoryResponse)
 async def get_category(
     category_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """
     Get category by ID
@@ -89,8 +86,7 @@ async def get_category(
 @router.get("/{category_id}/subcategories", response_model=List[CategoryResponse])
 async def get_subcategories(
     category_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """
     Get subcategories of a parent category
@@ -217,8 +213,7 @@ async def get_categories_with_product_count(
 
 @router.get("/featured/list")
 async def get_featured_categories(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """
     Get featured categories for homepage

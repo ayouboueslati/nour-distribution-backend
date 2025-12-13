@@ -15,32 +15,36 @@ class CartService(BaseService[Cart]):
     def __init__(self, db: Session):
         super().__init__(Cart, db)
     
-    def get_or_create_cart(self, client_id: UUID) -> Cart:
-        """Get active cart or create new one for client"""
+    def get_or_create_cart(self, guest_session_id: UUID) -> Cart:
+        """Get active cart for guest - NO CLIENT REQUIRED"""
+        # Try to find cart by guest_session_id first
         cart = self.db.query(Cart).filter(
             and_(
-                Cart.client_id == client_id,
+                Cart.guest_session_id == str(guest_session_id),
                 Cart.is_active == True
             )
         ).first()
-        
+    
         if not cart:
-            # Verify client exists
-            client = self.db.query(Client).filter(Client.id == client_id).first()
-            if not client:
-                raise ValueError("Client not found")
-            
-            cart = Cart(client_id=client_id, is_active=True)
+            # Create new cart without client
+            cart = Cart(
+                guest_session_id=str(guest_session_id),
+                is_active=True
+            )
             self.db.add(cart)
             self.db.commit()
             self.db.refresh(cart)
-        
+    
         return cart
     
-    def add_item_to_cart(self, client_id: UUID, item_data: CartItemCreate) -> CartItem:
-        """Add item to cart with stock validation"""
-        cart = self.get_or_create_cart(client_id)
-        
+    def add_item_to_cart(self, guest_session_id: UUID, item_data: CartItemCreate) -> CartItem:
+        """Add item to guest cart - NO CLIENT CHECK"""
+        print(f"CART SERVICE: Adding item - guest_session_id: {guest_session_id}, product_id: {item_data.product_id}, quantity: {item_data.quantity}")
+    
+        cart = self.get_or_create_cart(guest_session_id)
+    
+        print(f"CART SERVICE: Cart ID: {cart.id}, Guest Session: {cart.guest_session_id}")
+    
         # Check product exists and is active
         product = self.db.query(Product).filter(
             and_(
@@ -48,13 +52,14 @@ class CartService(BaseService[Cart]):
                 Product.is_active == True
             )
         ).first()
-        
+    
         if not product:
-            raise ValueError("Product not found or inactive")
-        
+            raise ValueError(f"Product with ID {item_data.product_id} not found or inactive")
+    
         # Check stock availability
-        available_stock = product.available_quantity
-        
+        available_stock = product.stock_quantity - product.reserved_quantity
+        print(f"CART SERVICE: Available stock: {available_stock}, Requested: {item_data.quantity}")
+    
         # Check if item already in cart
         existing_item = self.db.query(CartItem).filter(
             and_(
@@ -62,14 +67,14 @@ class CartService(BaseService[Cart]):
                 CartItem.product_id == item_data.product_id
             )
         ).first()
-        
+    
         if existing_item:
             # Update quantity
             new_quantity = existing_item.quantity + item_data.quantity
-            
+        
             if new_quantity > available_stock:
                 raise ValueError(f"Out of stock. Available: {available_stock}, Requested: {new_quantity}")
-            
+        
             existing_item.quantity = new_quantity
             self.db.commit()
             self.db.refresh(existing_item)
@@ -78,7 +83,7 @@ class CartService(BaseService[Cart]):
             # Check stock for new item
             if item_data.quantity > available_stock:
                 raise ValueError(f"Out of stock. Available: {available_stock}, Requested: {item_data.quantity}")
-            
+        
             # Create new cart item
             cart_item = CartItem(
                 cart_id=cart.id,
@@ -90,9 +95,9 @@ class CartService(BaseService[Cart]):
             self.db.refresh(cart_item)
             return cart_item
     
-    def update_cart_item(self, client_id: UUID, item_id: UUID, update_data: CartItemUpdate) -> CartItem:
+    def update_cart_item(self, guest_session_id: UUID, item_id: UUID, update_data: CartItemUpdate) -> CartItem:
         """Update cart item quantity"""
-        cart = self.get_or_create_cart(client_id)
+        cart = self.get_or_create_cart(guest_session_id)
         
         cart_item = self.db.query(CartItem).filter(
             and_(
@@ -116,9 +121,9 @@ class CartService(BaseService[Cart]):
         self.db.refresh(cart_item)
         return cart_item
     
-    def remove_cart_item(self, client_id: UUID, item_id: UUID) -> bool:
+    def remove_cart_item(self, guest_session_id: UUID, item_id: UUID) -> bool:
         """Remove item from cart"""
-        cart = self.get_or_create_cart(client_id)
+        cart = self.get_or_create_cart(guest_session_id)
         
         cart_item = self.db.query(CartItem).filter(
             and_(
@@ -134,22 +139,22 @@ class CartService(BaseService[Cart]):
         self.db.commit()
         return True
     
-    def get_cart_with_details(self, client_id: UUID) -> Optional[Cart]:
+    def get_cart_with_details(self, guest_session_id: UUID) -> Optional[Cart]:
         """Get cart with all items and product details"""
         cart = self.db.query(Cart).options(
             joinedload(Cart.items).joinedload(CartItem.product)
         ).filter(
             and_(
-                Cart.client_id == client_id,
+                Cart.guest_session_id == str(guest_session_id),
                 Cart.is_active == True
             )
         ).first()
         
         return cart
     
-    def clear_cart(self, client_id: UUID) -> bool:
+    def clear_cart(self, guest_session_id: UUID) -> bool:
         """Clear all items from cart"""
-        cart = self.get_or_create_cart(client_id)
+        cart = self.get_or_create_cart(guest_session_id)
         
         self.db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
         self.db.commit()

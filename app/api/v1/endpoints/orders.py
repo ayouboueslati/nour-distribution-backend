@@ -9,7 +9,9 @@ from app.models.user import User
 from app.models.order import OrderStatus
 from app.schemas.order import (
     OrderCreate, OrderFromCart, OrderUpdate, OrderPricing,
-    OrderResponse, OrderListResponse, OrderHistoryResponse
+    OrderResponse, OrderListResponse, OrderHistoryResponse,
+    OrderItemsUpdateRequest, OrderAcceptRequest, OrderRejectRequest,
+    OrderItemUpdate, OrderItemSingleUpdate, OrderItemCreate
 )
 from app.services.order_service import OrderService
 
@@ -74,7 +76,7 @@ async def create_order_direct(
 async def get_orders(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    status: Optional[str] = Query(None, description="Filter by status"),
+    order_status: Optional[str] = Query(None, description="Filter by status", alias="status"),
     client_id: Optional[UUID] = Query(None, description="Filter by client"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager)
@@ -85,14 +87,14 @@ async def get_orders(
     order_service = OrderService(db)
     
     try:
-        if status:
+        if order_status:
             try:
-                status_enum = OrderStatus(status)
+                status_enum = OrderStatus(order_status)
                 orders = order_service.get_orders_by_status(status_enum, skip, limit)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid status: {status}"
+                    detail=f"Invalid status: {order_status}"
                 )
         elif client_id:
             orders = order_service.get_client_orders(client_id, skip, limit)
@@ -190,6 +192,191 @@ async def confirm_order(
             detail=f"Error confirming order: {str(e)}"
         )
 
+@router.put("/{order_id}/items", response_model=OrderResponse)
+async def update_order_items(
+    order_id: UUID,
+    items_request: OrderItemsUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Update order items - add, remove, or modify products
+    Only allowed for PENDING or PROCESSING orders - Manager+ only
+    """
+    order_service = OrderService(db)
+    
+    try:
+        # Convert Pydantic models to dicts
+        items_data = [item.model_dump() for item in items_request.items]
+        order = order_service.update_order_items(order_id, items_data, user_id=current_user.id)
+        return order
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating order items: {str(e)}"
+        )
+
+@router.put("/{order_id}/items/{item_id}", response_model=OrderResponse)
+async def update_order_item(
+    order_id: UUID,
+    item_id: UUID,
+    item_data: OrderItemSingleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Update single order item - Manager+ only
+    Only allowed for PENDING or PROCESSING orders
+    """
+    order_service = OrderService(db)
+    
+    try:
+        order = order_service.update_order_item(
+            order_id, 
+            item_id, 
+            item_data, 
+            user_id=current_user.id
+        )
+        return order
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating order item: {str(e)}"
+        )
+
+@router.post("/{order_id}/items", response_model=OrderResponse)
+async def add_order_item(
+    order_id: UUID,
+    item_data: OrderItemCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Add item to order - Manager+ only
+    """
+    order_service = OrderService(db)
+    
+    try:
+        order = order_service.add_order_item(
+            order_id, 
+            item_data, 
+            user_id=current_user.id
+        )
+        return order
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding order item: {str(e)}"
+        )
+
+@router.delete("/{order_id}/items/{item_id}", response_model=OrderResponse)
+async def remove_order_item(
+    order_id: UUID,
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Remove item from order - Manager+ only
+    """
+    order_service = OrderService(db)
+    
+    try:
+        order = order_service.remove_order_item(
+            order_id, 
+            item_id, 
+            user_id=current_user.id
+        )
+        return order
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error removing order item: {str(e)}"
+        )
+
+@router.post("/{order_id}/accept", response_model=OrderResponse)
+async def accept_order(
+    order_id: UUID,
+    accept_request: OrderAcceptRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Accept order - change status from PENDING to PROCESSING
+    Manager+ only
+    """
+    order_service = OrderService(db)
+    
+    try:
+        order = order_service.accept_order(
+            order_id,
+            notes=accept_request.notes,
+            user_id=current_user.id
+        )
+        return order
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error accepting order: {str(e)}"
+        )
+
+@router.post("/{order_id}/reject", response_model=OrderResponse)
+async def reject_order(
+    order_id: UUID,
+    reject_request: OrderRejectRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Reject/Cancel order - change status to CANCELLED and release stock
+    Manager+ only
+    """
+    order_service = OrderService(db)
+    
+    try:
+        order = order_service.reject_order(
+            order_id,
+            reason=reject_request.reason,
+            notes=reject_request.notes,
+            user_id=current_user.id
+        )
+        return order
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error rejecting order: {str(e)}"
+        )
+
 @router.post("/{order_id}/cancel")
 async def cancel_order(
     order_id: UUID,
@@ -251,7 +438,7 @@ async def get_pending_orders(
     """
     order_service = OrderService(db)
     
-    orders = order_service.get_orders_by_status(OrderStatus.EN_ATTENTE, skip, limit)
+    orders = order_service.get_orders_by_status(OrderStatus.PENDING, skip, limit)
     
     return {
         "orders": orders,

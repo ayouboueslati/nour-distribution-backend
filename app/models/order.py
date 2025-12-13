@@ -5,17 +5,20 @@ from sqlalchemy.dialects.postgresql import UUID
 import enum
 
 class OrderStatus(enum.Enum):
-    EN_ATTENTE = "en_attente"  # Waiting - just submitted by client
-    EN_TRAITEMENT = "en_traitement"  # Processing - admin is working on it
-    CONFIRME = "confirme"  # Confirmed by admin
-    ANNULE = "annule"  # Cancelled
+    PENDING = "PENDING"  # Waiting - just submitted by client (was: EN_ATTENTE)
+    PROCESSING = "PROCESSING"  # Processing - admin is working on it (was: EN_TRAITEMENT)
+    CONFIRMED = "CONFIRMED"  # Confirmed by admin (was: CONFIRME)
+    CANCELLED = "CANCELLED"  # Cancelled (was: ANNULE)
+    DRAFT = "DRAFT"  # Draft order
+    SHIPPED = "SHIPPED"  # Shipped
+    DELIVERED = "DELIVERED"  # Delivered
 
 class Order(BaseModel):
     __tablename__ = "orders"
     
     # Order identification
     order_number = Column(String(50), unique=True, index=True)
-    status = Column(Enum(OrderStatus), default=OrderStatus.EN_ATTENTE)
+    status = Column(Enum(OrderStatus), default=OrderStatus.PENDING)
     
     # Client relationship
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"))

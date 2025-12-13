@@ -2,24 +2,23 @@ from sqlalchemy import Column, String, Text, Integer, Float, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from .base import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime
 
 class Cart(BaseModel):
     __tablename__ = "carts"
     
-    # Client relationship
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
-    client = relationship("Client", backref="carts")
+    # Remove client_id completely
+    # Use guest_session_id for identifying carts instead
+    guest_session_id = Column(String(255), nullable=True, index=True)
     
     # Cart status
-    is_active = Column(Boolean, default=True)  # Active cart vs converted to order
+    is_active = Column(Boolean, default=True)
     
     # Relationships
     items = relationship("CartItem", back_populates="cart", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Cart {self.id} for Client {self.client_id}>"
-
+        return f"<Cart {self.id} - Guest {self.guest_session_id}>"
 
 class CartItem(BaseModel):
     __tablename__ = "cart_items"

@@ -10,7 +10,7 @@ from app.models.product import Product
 from app.models.client import Client
 from app.models.cart import Cart, CartItem
 from app.models.inventory import InventoryMovement, MovementType
-from app.schemas.order import OrderCreate, OrderUpdate, OrderPricing, OrderFromCart
+from app.schemas.order import OrderCreate, OrderUpdate, OrderPricing, OrderFromCart, OrderItemUpdate, OrderItemCreate
 from app.services.base import BaseService
 
 class OrderService(BaseService[Order]):
@@ -36,7 +36,7 @@ class OrderService(BaseService[Order]):
         
         return f"{prefix}-{new_num:04d}"
     
-    def create_order_from_cart(self, cart_id: UUID, order_data: OrderFromCart, user_id: Optional[UUID] = None) -> Order:
+    def create_order_from_cart(self, cart_id: UUID, client_id: UUID, order_data: OrderFromCart, user_id: Optional[UUID] = None) -> Order:
         """Create order from cart and reserve stock"""
         # Get cart with items
         cart = self.db.query(Cart).options(
@@ -50,7 +50,7 @@ class OrderService(BaseService[Order]):
             raise ValueError("Cart is empty")
         
         # Verify client exists
-        client = self.db.query(Client).filter(Client.id == cart.client_id).first()
+        client = self.db.query(Client).filter(Client.id == client_id).first()
         if not client:
             raise ValueError("Client not found")
         
@@ -63,8 +63,8 @@ class OrderService(BaseService[Order]):
         # Create order
         order = Order(
             order_number=self.generate_order_number(),
-            client_id=cart.client_id,
-            status=OrderStatus.EN_ATTENTE,
+            client_id=client_id,
+            status=OrderStatus.PENDING,
             submitted_at=datetime.utcnow(),
             shipping_address=order_data.shipping_address,
             delivery_notes=order_data.delivery_notes,
@@ -113,7 +113,7 @@ class OrderService(BaseService[Order]):
             order_id=order.id,
             changed_by=user_id,
             action="created",
-            new_value=json.dumps({"status": OrderStatus.EN_ATTENTE.value}),
+            new_value=json.dumps({"status": OrderStatus.PENDING.value}),
             notes="Order created from cart"
         )
         self.db.add(history)
@@ -151,7 +151,7 @@ class OrderService(BaseService[Order]):
         order = Order(
             order_number=self.generate_order_number(),
             client_id=order_data.client_id,
-            status=OrderStatus.EN_ATTENTE,
+            status=OrderStatus.PENDING,
             submitted_at=datetime.utcnow(),
             shipping_address=order_data.shipping_address,
             delivery_notes=order_data.delivery_notes,
@@ -199,7 +199,7 @@ class OrderService(BaseService[Order]):
             order_id=order.id,
             changed_by=user_id,
             action="created",
-            new_value=json.dumps({"status": OrderStatus.EN_ATTENTE.value}),
+            new_value=json.dumps({"status": OrderStatus.PENDING.value}),
             notes="Order created directly"
         )
         self.db.add(history)
@@ -217,12 +217,12 @@ class OrderService(BaseService[Order]):
         if not order:
             raise ValueError("Order not found")
         
-        if order.status not in [OrderStatus.EN_ATTENTE, OrderStatus.EN_TRAITEMENT]:
+        if order.status not in [OrderStatus.PENDING, OrderStatus.PROCESSING]:
             raise ValueError("Cannot update pricing for this order status")
         
         # Update order items with pricing
         for item_update in pricing_data.items:
-            order_item = next((item for item in order.items if item.id == item_update.id), None)
+            order_item = next((item for item in order.items if item.product_id == item_update.product_id), None)
             if order_item:
                 if item_update.quantity is not None:
                     order_item.quantity = item_update.quantity
@@ -248,7 +248,7 @@ class OrderService(BaseService[Order]):
         order.tax_amount = pricing_data.tax_amount
         order.total_amount = pricing_data.total_amount
         order.processed_at = datetime.utcnow()
-        order.status = OrderStatus.EN_TRAITEMENT
+        order.status = OrderStatus.PROCESSING
         
         # Create history
         history = OrderHistory(
@@ -268,18 +268,177 @@ class OrderService(BaseService[Order]):
         self.db.refresh(order)
         return order
     
+    def _generate_devis(self, order: Order, user_id: Optional[UUID]) -> None:
+        """Helper to generate devis from order with ALL information"""
+        from app.services.document_service import DocumentService
+        from app.schemas.document import DevisFromOrder
+        from datetime import timedelta
+    
+        # Vérifier si un devis existe déjà
+        from app.models.document import Document, DocumentType 
+    
+        existing_devis = self.db.query(Document).filter(
+            and_(
+                Document.order_id == order.id,
+                Document.type == DocumentType.DEVIS
+            )
+        ).first()
+    
+        if existing_devis:
+            print(f"ℹ️ Devis already exists for order {order.order_number}: {existing_devis.document_number}")
+            return
+    
+        # VALIDATION : Vérifier que la commande a des prix
+        if not order.total_amount or order.total_amount == 0:
+            error_msg = f"Impossible de générer un devis : la commande {order.order_number} n'a pas de prix défini"
+            print(f"❌ {error_msg}")
+        
+            error_history = OrderHistory(
+                order_id=order.id,
+                changed_by=user_id,
+                action="devis_generation_failed",
+                notes=error_msg
+            )
+            self.db.add(error_history)
+            self.db.commit()
+            raise ValueError(error_msg)
+    
+        # Préparer les notes avec informations client
+        client_info = f"""
+Informations Client:
+- Nom: {order.client.company_name if order.client.type == 'b2b' else f"{order.client.first_name} {order.client.last_name}"}
+- Email: {order.client.email}
+- Téléphone: {order.client.phone or 'Non renseigné'}
+- Adresse: {order.client.address or 'Non renseignée'}
+- Type: {'Professionnel (B2B)' if order.client.type == 'b2b' else 'Particulier (B2C)'}
+
+Adresse de livraison: {order.shipping_address or 'Identique à l\'adresse client'}
+"""
+    
+        if order.delivery_notes:
+            client_info += f"\nNotes de livraison: {order.delivery_notes}"
+    
+        document_service = DocumentService(self.db)
+    
+        # Calculer la date d'échéance (30 jours par défaut)
+        issue_date = datetime.utcnow()
+        due_date = issue_date + timedelta(days=30)
+    
+        devis_data = DevisFromOrder(
+            order_id=order.id,
+            issue_date=issue_date,
+            due_date=due_date,
+            notes=client_info,
+            terms="""Conditions de paiement:
+- Devis valable 30 jours
+- Paiement à la commande ou selon accord
+- TVA 19% incluse (Tunisie)
+- Livraison sous 7-14 jours ouvrables
+
+En acceptant ce devis, vous confirmez votre commande."""
+        )
+    
+        try:
+            print(f"📝 Generating devis for order {order.order_number}...")
+            devis = document_service.create_devis_from_order(
+                order.id, 
+                devis_data, 
+                user_id
+            )
+            
+            print(f"✅ Devis {devis.document_number} created successfully!")
+            
+            # Ajouter l'historique de succès
+            devis_history = OrderHistory(
+                order_id=order.id,
+                changed_by=user_id,
+                action="devis_generated",
+                new_value=json.dumps({
+                    "devis_number": devis.document_number, 
+                    "devis_id": str(devis.id),
+                    "total_amount": float(devis.total_amount),
+                    "client_name": order.client.company_name if order.client.type == 'b2b' else f"{order.client.first_name} {order.client.last_name}",
+                    "client_email": order.client.email
+                }),
+                notes=f"Devis {devis.document_number} généré automatiquement avec succès"
+            )
+            self.db.add(devis_history)
+            self.db.commit()
+            
+        except Exception as e:
+            error_msg = f"Erreur lors de la génération du devis: {str(e)}"
+            print(f"❌ {error_msg}")
+            
+            error_history = OrderHistory(
+                order_id=order.id,
+                changed_by=user_id,
+                action="devis_generation_failed",
+                notes=error_msg
+            )
+            self.db.add(error_history)
+            self.db.commit()
+            raise ValueError(error_msg)
+    
+    
+    def accept_order(self, order_id: UUID, notes: Optional[str] = None, user_id: Optional[UUID] = None) -> Order:
+        """Accept order - change status from PENDING to PROCESSING and auto-generate Devis"""
+        order = self.db.query(Order).options(
+            joinedload(Order.items).joinedload(OrderItem.product),
+            joinedload(Order.client)
+        ).filter(Order.id == order_id).first()
+    
+        if not order:
+            raise ValueError("Order not found")
+    
+        # Vérifier que la commande a bien des prix définis
+        if not order.total_amount or order.total_amount == 0:
+            raise ValueError("La commande doit avoir des prix définis avant d'être acceptée. Veuillez d'abord définir les prix.")
+    
+        # Vérifier que tous les items ont des prix
+        for item in order.items:
+            if not item.unit_price or item.unit_price == 0:
+                raise ValueError(f"Le produit '{item.product.name}' n'a pas de prix défini. Veuillez définir les prix avant d'accepter.")
+    
+        # Allow PROCESSING status (idempotent), but ensure Devis is checked
+        if order.status not in [OrderStatus.PENDING, OrderStatus.PROCESSING]:
+            raise ValueError(f"Impossible d'accepter une commande avec le statut : {order.status.value}")
+    
+        # Changer le statut si nécessaire
+        if order.status == OrderStatus.PENDING:
+            old_status = order.status
+            order.status = OrderStatus.PROCESSING
+            order.processed_at = datetime.utcnow()
+        
+        history = OrderHistory(
+            order_id=order.id,
+            changed_by=user_id,
+            action="accepted",
+            old_value=json.dumps({"status": old_status.value}),
+            new_value=json.dumps({"status": OrderStatus.PROCESSING.value}),
+            notes=notes or "Commande acceptée par l'administrateur"
+        )
+        self.db.add(history)
+        self.db.flush()
+
+        # Générer le Devis automatiquement avec TOUTES les informations
+        self._generate_devis(order, user_id)
+    
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+    
     def confirm_order(self, order_id: UUID, user_id: Optional[UUID] = None) -> Order:
-        """Admin confirms order"""
+        """Admin confirms order (without auto-generating devis, use accept_order for that)"""
         order = self.db.query(Order).filter(Order.id == order_id).first()
         
         if not order:
             raise ValueError("Order not found")
         
-        if order.status != OrderStatus.EN_TRAITEMENT:
+        if order.status != OrderStatus.PROCESSING:
             raise ValueError("Order must be in processing status to confirm")
         
         old_status = order.status
-        order.status = OrderStatus.CONFIRME
+        order.status = OrderStatus.CONFIRMED
         order.confirmed_at = datetime.utcnow()
         
         # Create history
@@ -288,7 +447,7 @@ class OrderService(BaseService[Order]):
             changed_by=user_id,
             action="status_changed",
             old_value=old_status.value,
-            new_value=OrderStatus.CONFIRME.value,
+            new_value=OrderStatus.CONFIRMED.value,
             notes="Order confirmed by admin"
         )
         self.db.add(history)
@@ -306,7 +465,7 @@ class OrderService(BaseService[Order]):
         if not order:
             raise ValueError("Order not found")
         
-        if order.status == OrderStatus.ANNULE:
+        if order.status == OrderStatus.CANCELLED:
             raise ValueError("Order already cancelled")
         
         old_status = order.status
@@ -335,7 +494,7 @@ class OrderService(BaseService[Order]):
             
             order.stock_reserved = False
         
-        order.status = OrderStatus.ANNULE
+        order.status = OrderStatus.CANCELLED
         
         # Create history
         history = OrderHistory(
@@ -343,7 +502,7 @@ class OrderService(BaseService[Order]):
             changed_by=user_id,
             action="cancelled",
             old_value=old_status.value,
-            new_value=OrderStatus.ANNULE.value,
+            new_value=OrderStatus.CANCELLED.value,
             notes=reason
         )
         self.db.add(history)
@@ -357,7 +516,8 @@ class OrderService(BaseService[Order]):
         return self.db.query(Order).options(
             joinedload(Order.items).joinedload(OrderItem.product),
             joinedload(Order.client),
-            joinedload(Order.history)
+            joinedload(Order.history),
+            joinedload(Order.documents)
         ).filter(Order.id == order_id).first()
     
     def get_orders_by_status(self, status: OrderStatus, skip: int = 0, limit: int = 100) -> List[Order]:
@@ -372,13 +532,370 @@ class OrderService(BaseService[Order]):
             Order.client_id == client_id
         ).order_by(desc(Order.created_at)).offset(skip).limit(limit).all()
     
+    
+
+    
+    def update_order_item(self, order_id: UUID, item_id: UUID, item_data: OrderItemUpdate, user_id: Optional[UUID] = None) -> Order:
+        """Update single order item - change quantity or price. Only allowed for PENDING or PROCESSING orders"""
+        order = self.db.query(Order).options(
+            joinedload(Order.items).joinedload(OrderItem.product)
+        ).filter(Order.id == order_id).first()
+        
+        if not order:
+            raise ValueError("Order not found")
+        
+        if order.status not in [OrderStatus.PENDING, OrderStatus.PROCESSING]:
+            raise ValueError(f"Cannot edit order with status {order.status.value}")
+            
+        # Find item
+        order_item = next((item for item in order.items if item.product_id == item_id or item.id == item_id), None)
+        if not order_item:
+            # Try to look it up directly if not found in preloaded items (should not happen if ID is correct)
+            raise ValueError("Order item not found")
+
+        product = order_item.product
+        
+        # Check stock if quantity increases
+        if item_data.quantity is not None and item_data.quantity > order_item.quantity:
+            additional_qty = item_data.quantity - order_item.quantity
+            # Check availability (considering we already reserved some)
+            if product.stock_quantity < additional_qty:
+                raise ValueError(f"Insufficient stock for {product.name}")
+            
+            # Update reservation
+            product.reserved_quantity += additional_qty
+            
+            # Inventory movement for additional reservation
+            movement = InventoryMovement(
+                product_id=product.id,
+                movement_type=MovementType.RESERVED,
+                quantity=additional_qty,
+                previous_stock=product.stock_quantity,
+                new_stock=product.stock_quantity,
+                reference_type="order",
+                reference_id=order.id,
+                reason="order_update",
+                notes=f"Additional stock reserved for order {order.order_number}",
+                performed_by=user_id
+            )
+            self.db.add(movement)
+            
+        elif item_data.quantity is not None and item_data.quantity < order_item.quantity:
+            # Release some stock
+            released_qty = order_item.quantity - item_data.quantity
+            product.reserved_quantity = max(0, product.reserved_quantity - released_qty)
+            
+            # Inventory movement for released reservation
+            movement = InventoryMovement(
+                product_id=product.id,
+                movement_type=MovementType.RELEASED,
+                quantity=released_qty,
+                previous_stock=product.stock_quantity,
+                new_stock=product.stock_quantity,
+                reference_type="order",
+                reference_id=order.id,
+                reason="order_update",
+                notes=f"Stock released from order update {order.order_number}",
+                performed_by=user_id
+            )
+            self.db.add(movement)
+
+        # Update item fields
+        if item_data.quantity is not None:
+            order_item.quantity = item_data.quantity
+            
+        if item_data.unit_price is not None:
+            order_item.unit_price = item_data.unit_price
+            
+        if item_data.discount_percent is not None:
+            order_item.discount_percent = item_data.discount_percent
+            
+        # Recalculate subtotal
+        price_to_use = order_item.unit_price if order_item.unit_price is not None else (product.retail_price or 0)
+        base_price = price_to_use * order_item.quantity
+        discount_amount = base_price * (order_item.discount_percent / 100)
+        order_item.subtotal = base_price - discount_amount
+        
+        # Recalculate order totals
+        order.subtotal = sum(item.subtotal for item in order.items)
+        order.total_amount = order.subtotal + order.shipping_fee - order.discount + order.tax_amount
+        
+        # Add history entry
+        history = OrderHistory(
+            order_id=order.id,
+            changed_by=user_id,
+            action="item_updated",
+            new_value=json.dumps({"product_id": str(order_item.product_id), "quantity": order_item.quantity}),
+            notes=f"Order item updated: {product.name}"
+        )
+        self.db.add(history)
+        
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+    
+    
+    def add_order_item(self, order_id: UUID, item_data: OrderItemCreate, user_id: Optional[UUID] = None) -> Order:
+        """Add item to order (or update quantity if exists). Only for PENDING/PROCESSING orders."""
+        order = self.db.query(Order).options(
+            joinedload(Order.items).joinedload(OrderItem.product)
+        ).filter(Order.id == order_id).first()
+        
+        if not order:
+            raise ValueError("Order not found")
+            
+        if order.status not in [OrderStatus.PENDING, OrderStatus.PROCESSING]:
+            raise ValueError(f"Cannot edit order with status {order.status.value}")
+            
+        # Check if product exists and is active
+        product = self.db.query(Product).filter(
+            and_(
+                Product.id == item_data.product_id,
+                Product.is_active == True
+            )
+        ).first()
+        
+        if not product:
+            raise ValueError(f"Product {item_data.product_id} not found or inactive")
+            
+        # Check if item already exists in order
+        existing_item = next((item for item in order.items if item.product_id == item_data.product_id), None)
+        
+        if existing_item:
+            # Update existing item
+            return self.update_order_item(
+                order_id, 
+                existing_item.id, 
+                OrderItemUpdate(
+                    product_id=existing_item.product_id,
+                    quantity=existing_item.quantity + item_data.quantity,
+                    discount_percent=existing_item.discount_percent
+                ),
+                user_id
+            )
+            
+        # Check stock availability
+        if item_data.quantity > product.available_quantity:
+            raise ValueError(f"Insufficient stock for {product.name}. Available: {product.available_quantity}")
+            
+        # Reserve stock
+        product.reserved_quantity += item_data.quantity
+        
+        # Create inventory movement
+        movement = InventoryMovement(
+            product_id=product.id,
+            movement_type=MovementType.RESERVED,
+            quantity=item_data.quantity,
+            previous_stock=product.stock_quantity,
+            new_stock=product.stock_quantity,
+            reference_type="order",
+            reference_id=order.id,
+            reason="order_add_item",
+            notes=f"Stock reserved for new item in order {order.order_number}",
+            performed_by=user_id
+        )
+        self.db.add(movement)
+        
+        # key error fix: ensure order.stock_reserved is true if we are adding items
+        if not order.stock_reserved:
+            order.stock_reserved = True
+            
+        # Create new order item
+        # Calculate price and subtotal
+        price_to_use = product.retail_price or 0
+        base_price = price_to_use * item_data.quantity
+        discount_amount = base_price * (item_data.discount_percent / 100)
+        subtotal = base_price - discount_amount
+        
+        new_item = OrderItem(
+            order_id=order.id,
+            product_id=product.id,
+            quantity=item_data.quantity,
+            unit_price=price_to_use,
+            discount_percent=item_data.discount_percent,
+            subtotal=subtotal
+        )
+        self.db.add(new_item)
+        
+        # Update order totals (need to flush first to get new_item in order.items if re-querying, 
+        # but here we can just add to current totals or re-calculate)
+        # Safest is to add to session, flush, and re-calculate
+        self.db.flush()
+        
+        # Recalculate order totals
+        # We need to refresh order.items to include the new one
+        self.db.refresh(order)
+        
+        order.subtotal = sum(item.subtotal for item in order.items)
+        order.total_amount = order.subtotal + order.shipping_fee - order.discount + order.tax_amount
+        
+        # History
+        history = OrderHistory(
+            order_id=order.id,
+            changed_by=user_id,
+            action="item_added",
+            new_value=json.dumps({"product_id": str(product.id), "quantity": item_data.quantity}),
+            notes=f"Added item: {product.name}"
+        )
+        self.db.add(history)
+        
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+
+    def remove_order_item(self, order_id: UUID, item_id: UUID, user_id: Optional[UUID] = None) -> Order:
+        """Remove item from order and release stock"""
+        order = self.db.query(Order).options(
+            joinedload(Order.items).joinedload(OrderItem.product)
+        ).filter(Order.id == order_id).first()
+        
+        if not order:
+            raise ValueError("Order not found")
+            
+        if order.status not in [OrderStatus.PENDING, OrderStatus.PROCESSING]:
+            raise ValueError(f"Cannot edit order with status {order.status.value}")
+            
+        # Find item
+        order_item = next((item for item in order.items if item.product_id == item_id or item.id == item_id), None)
+        if not order_item:
+            raise ValueError("Order item not found")
+            
+        product = order_item.product
+        quantity_to_release = order_item.quantity
+        
+        # Release stock
+        product.reserved_quantity = max(0, product.reserved_quantity - quantity_to_release)
+        
+        # Inventory movement
+        movement = InventoryMovement(
+            product_id=product.id,
+            movement_type=MovementType.RELEASED,
+            quantity=quantity_to_release,
+            previous_stock=product.stock_quantity,
+            new_stock=product.stock_quantity,
+            reference_type="order",
+            reference_id=order.id,
+            reason="order_remove_item",
+            notes=f"Stock released from removed item in order {order.order_number}",
+            performed_by=user_id
+        )
+        self.db.add(movement)
+        
+        # Remove item
+        self.db.delete(order_item)
+        self.db.flush()
+        self.db.refresh(order)
+        
+        # Recalculate totals
+        order.subtotal = sum(item.subtotal for item in order.items)
+        order.total_amount = order.subtotal + order.shipping_fee - order.discount + order.tax_amount
+        
+        # History
+        history = OrderHistory(
+            order_id=order.id,
+            changed_by=user_id,
+            action="item_removed",
+            old_value=json.dumps({"product_id": str(product.id), "quantity": quantity_to_release}),
+            notes=f"Removed item: {product.name}"
+        )
+        self.db.add(history)
+        
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+
+    def accept_order(self, order_id: UUID, notes: Optional[str] = None, user_id: Optional[UUID] = None) -> Order:
+        """Accept order - change status from PENDING to PROCESSING"""
+        order = self.db.query(Order).filter(Order.id == order_id).first()
+        
+        if not order:
+            raise ValueError("Order not found")
+        
+        # Allow PROCESSING status (idempotent), but ensure Devis is checked
+        if order.status not in [OrderStatus.PENDING, OrderStatus.PROCESSING]:
+            raise ValueError(f"Can only accept orders with PENDING status, current status: {order.status.value}")
+        
+        if order.status == OrderStatus.PENDING:
+            old_status = order.status
+            order.status = OrderStatus.PROCESSING
+            order.processed_at = datetime.utcnow()
+            
+            history = OrderHistory(
+                order_id=order.id,
+                changed_by=user_id,
+                action="accepted",
+                old_value=json.dumps({"status": old_status.value}),
+                new_value=json.dumps({"status": OrderStatus.PROCESSING.value}),
+                notes=notes or "Order accepted by admin"
+            )
+            self.db.add(history)
+            self.db.flush()
+
+        # Generate Devis (helper checks if it already exists)
+        self._generate_devis(order, user_id)
+        
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+    
+    def reject_order(self, order_id: UUID, reason: str, notes: Optional[str] = None, user_id: Optional[UUID] = None) -> Order:
+        """Reject/Cancel order - change status to CANCELLED and release stock"""
+        order = self.db.query(Order).options(
+            joinedload(Order.items).joinedload(OrderItem.product)
+        ).filter(Order.id == order_id).first()
+        
+        if not order:
+            raise ValueError("Order not found")
+        
+        if order.status == OrderStatus.CANCELLED:
+            raise ValueError("Order is already cancelled")
+        
+        if order.status == OrderStatus.CONFIRMED:
+            raise ValueError("Cannot cancel confirmed orders")
+        
+        # Release reserved stock
+        if order.stock_reserved:
+            for item in order.items:
+                product = item.product
+                product.stock_quantity += item.quantity
+                product.reserved_quantity -= item.quantity
+                
+                movement = InventoryMovement(
+                    product_id=product.id,
+                    movement_type=MovementType.RELEASED,
+                    quantity=item.quantity,
+                    reference_type="order",
+                    reference_id=order.id,
+                    notes=f"Stock released from cancelled order {order.order_number}"
+                )
+                self.db.add(movement)
+            
+            order.stock_reserved = False
+        
+        old_status = order.status
+        order.status = OrderStatus.CANCELLED
+        
+        history = OrderHistory(
+            order_id=order.id,
+            changed_by=user_id,
+            action="rejected",
+            old_value=json.dumps({"status": old_status.value}),
+            new_value=json.dumps({"status": OrderStatus.CANCELLED.value, "reason": reason}),
+            notes=notes or f"Order rejected: {reason}"
+        )
+        self.db.add(history)
+        
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+    
     def check_expired_reservations(self) -> List[UUID]:
         """Check and release expired order reservations"""
         now = datetime.utcnow()
         
         expired_orders = self.db.query(Order).filter(
             and_(
-                Order.status == OrderStatus.EN_ATTENTE,
+                Order.status == OrderStatus.PENDING,
                 Order.reservation_expires_at < now,
                 Order.stock_reserved == True
             )
@@ -394,3 +911,113 @@ class OrderService(BaseService[Order]):
             released_orders.append(order.id)
         
         return released_orders
+
+def _generate_devis(self, order: Order, user_id: Optional[UUID]) -> None:
+    """Helper to generate devis from order with ALL information"""
+    from app.services.document_service import DocumentService
+    from app.schemas.document import DevisFromOrder
+    
+    # Vérifier si un devis existe déjà
+    from app.models.document import Document, DocumentType 
+    
+    existing_devis = self.db.query(Document).filter(
+        and_(
+            Document.order_id == order.id,
+            Document.type == DocumentType.DEVIS
+        )
+    ).first()
+    
+    if existing_devis:
+        print(f"ℹ️ Devis already exists for order {order.order_number}: {existing_devis.document_number}")
+        return
+    
+    # VALIDATION : Vérifier que la commande a des prix
+    if not order.total_amount or order.total_amount == 0:
+        error_msg = f"Impossible de générer un devis : la commande {order.order_number} n'a pas de prix défini"
+        print(f"❌ {error_msg}")
+        
+        error_history = OrderHistory(
+            order_id=order.id,
+            changed_by=user_id,
+            action="devis_generation_failed",
+            notes=error_msg
+        )
+        self.db.add(error_history)
+        self.db.commit()
+        raise ValueError(error_msg)
+    
+    # Préparer les notes avec informations client
+    client_info = f"""
+Informations Client:
+- Nom: {order.client.company_name if order.client.type == 'b2b' else f"{order.client.first_name} {order.client.last_name}"}
+- Email: {order.client.email}
+- Téléphone: {order.client.phone or 'Non renseigné'}
+- Adresse: {order.client.address or 'Non renseignée'}
+- Type: {'Professionnel (B2B)' if order.client.type == 'b2b' else 'Particulier (B2C)'}
+
+Adresse de livraison: {order.shipping_address or 'Identique à l\'adresse client'}
+"""
+    
+    if order.delivery_notes:
+        client_info += f"\nNotes de livraison: {order.delivery_notes}"
+    
+    document_service = DocumentService(self.db)
+    
+    # Calculer la date d'échéance (30 jours par défaut)
+    issue_date = datetime.utcnow()
+    due_date = issue_date + timedelta(days=30)
+    
+    devis_data = DevisFromOrder(
+        order_id=order.id,
+        issue_date=issue_date,
+        due_date=due_date,
+        notes=client_info,
+        terms="""Conditions de paiement:
+- Devis valable 30 jours
+- Paiement à la commande ou selon accord
+- TVA 19% incluse (Tunisie)
+- Livraison sous 7-14 jours ouvrables
+
+En acceptant ce devis, vous confirmez votre commande."""
+    )
+    
+    try:
+        print(f"📝 Generating devis for order {order.order_number}...")
+        devis = document_service.create_devis_from_order(
+            order.id, 
+            devis_data, 
+            user_id
+        )
+        
+        print(f"✅ Devis {devis.document_number} created successfully!")
+        
+        # Ajouter l'historique de succès
+        devis_history = OrderHistory(
+            order_id=order.id,
+            changed_by=user_id,
+            action="devis_generated",
+            new_value=json.dumps({
+                "devis_number": devis.document_number, 
+                "devis_id": str(devis.id),
+                "total_amount": float(devis.total_amount),
+                "client_name": order.client.company_name if order.client.type == 'b2b' else f"{order.client.first_name} {order.client.last_name}",
+                "client_email": order.client.email
+            }),
+            notes=f"Devis {devis.document_number} généré automatiquement avec succès"
+        )
+        self.db.add(devis_history)
+        self.db.commit()
+        
+    except Exception as e:
+        error_msg = f"Erreur lors de la génération du devis: {str(e)}"
+        print(f"❌ {error_msg}")
+        
+        error_history = OrderHistory(
+            order_id=order.id,
+            changed_by=user_id,
+            action="devis_generation_failed",
+            notes=error_msg
+        )
+        self.db.add(error_history)
+        self.db.commit()
+        raise ValueError(error_msg)

@@ -27,13 +27,14 @@ class CartItemResponse(BaseModel):
 
 # Cart Schemas
 class CartCreate(BaseModel):
-    client_id: UUID
+    # No client_id required for creation - strictly guest based initially
+    pass
 
 class CartResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: UUID
-    client_id: UUID
+    guest_session_id: Optional[str] = None # Expose guest_session_id
     is_active: bool
     created_at: datetime
     updated_at: datetime

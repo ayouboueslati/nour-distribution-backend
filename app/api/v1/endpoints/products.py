@@ -29,8 +29,7 @@ async def get_products(
     hair_length: Optional[str] = Query(None, description="Filter by hair length"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     search: Optional[str] = Query(None, description="Search in name, SKU, description"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """
     Get products with advanced filtering and search
@@ -106,8 +105,7 @@ async def get_products_admin(
 @router.get("/{product_id}", response_model=ProductPublicResponse)
 async def get_product(
     product_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """
     Get product by ID (public details)

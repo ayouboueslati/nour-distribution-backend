@@ -4,7 +4,6 @@ from typing import List, Optional
 from uuid import UUID
 import os
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
 from app.models.client import Client
 from app.models.order import Order, OrderStatus
 from app.models.document import Document, DocumentType, DocumentStatus
@@ -14,77 +13,100 @@ from app.services.pdf_generator import TunisianPDFGenerator
 
 router = APIRouter()
 
-@router.get("/me/orders", response_model=List[dict])
-async def get_my_orders(
-    status: Optional[str] = Query(None, description="Filter by status"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
-    current_client: Client = Depends(get_current_user)
-):
-    """Get current client's orders"""
-    order_service = OrderService(db)
-    
-    query = db.query(Order).filter(Order.client_id == current_client.id)
-    
-    if status:
-        try:
-            status_enum = OrderStatus(status)
-            query = query.filter(Order.status == status_enum)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status: {status}"
-            )
-    
-    orders = query.order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
-    
-    return [
-        {
-            "id": order.id,
-            "order_number": order.order_number,
-            "status": order.status.value,
-            "submitted_at": order.submitted_at,
-            "total_amount": order.total_amount,
-            "items_count": len(order.items),
-            "has_devis": any(doc.type == DocumentType.DEVIS for doc in order.documents),
-            "has_facture": any(doc.type == DocumentType.FACTURE for doc in order.documents)
-        }
-        for order in orders
-    ]
 
-@router.get("/me/orders/{order_id}")
-async def get_my_order_details(
-    order_id: UUID,
-    db: Session = Depends(get_db),
-    current_client: Client = Depends(get_current_client)
+# ============================================================================
+# PUBLIC ENDPOINTS - NO AUTHENTICATION REQUIRED
+# ============================================================================
+
+@router.post("/verify-order")
+async def verify_order_access(
+    order_number: str = Query(..., description="Order number (e.g., CMD-20241208-0001)"),
+    verification_code: str = Query(..., description="Phone or email for verification"),
+    db: Session = Depends(get_db)
 ):
-    """Get detailed order information"""
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.client_id == current_client.id
-    ).first()
+    """
+    Verify access to order using order number + phone/email
+    Returns order ID if verification successful
+    """
+    # Find order by order number
+    order = db.query(Order).filter(Order.order_number == order_number).first()
     
     if not order:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found"
+            detail="Commande introuvable"
+        )
+    
+    # Get client
+    client = order.client
+    
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Client introuvable"
+        )
+    
+    # Verify using phone or email
+    verification_code_clean = verification_code.strip().lower()
+    client_phone = (client.phone or "").strip().lower()
+    client_email = (client.email or "").strip().lower()
+    
+    if verification_code_clean not in [client_phone, client_email]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Code de vérification incorrect"
+        )
+    
+    return {
+        "success": True,
+        "order_id": str(order.id),
+        "order_number": order.order_number,
+        "client_name": client.company_name or f"{client.first_name} {client.last_name}",
+        "message": "Accès autorisé"
+    }
+
+
+@router.get("/orders/{order_id}")
+async def get_order_details(
+    order_id: UUID,
+    verification: str = Query(..., description="Phone or email for verification"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get order details - PUBLIC endpoint with verification
+    """
+    order = db.query(Order).filter(Order.id == order_id).first()
+    
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Commande introuvable"
+        )
+    
+    client = order.client
+    
+    # Verify access
+    verification_clean = verification.strip().lower()
+    if verification_clean not in [(client.phone or "").strip().lower(), (client.email or "").strip().lower()]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès non autorisé"
         )
     
     # Get related documents
     documents = db.query(Document).filter(
         Document.order_id == order_id,
-        Document.client_id == current_client.id
+        Document.client_id == client.id
     ).all()
     
     return {
         "order": {
-            "id": order.id,
+            "id": str(order.id),
             "order_number": order.order_number,
             "status": order.status.value,
-            "submitted_at": order.submitted_at,
-            "processed_at": order.processed_at,
-            "confirmed_at": order.confirmed_at,
+            "submitted_at": order.submitted_at.isoformat() if order.submitted_at else None,
+            "processed_at": order.processed_at.isoformat() if order.processed_at else None,
+            "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
             "subtotal": order.subtotal,
             "shipping_fee": order.shipping_fee,
             "discount": order.discount,
@@ -94,7 +116,7 @@ async def get_my_order_details(
             "delivery_notes": order.delivery_notes,
             "items": [
                 {
-                    "product_id": item.product_id,
+                    "product_id": str(item.product_id),
                     "product_name": item.product.name if item.product else "Unknown",
                     "quantity": item.quantity,
                     "unit_price": item.unit_price,
@@ -103,111 +125,250 @@ async def get_my_order_details(
                 for item in order.items
             ]
         },
+        "client": {
+            "name": client.company_name or f"{client.first_name} {client.last_name}",
+            "type": client.type.value,
+            "phone": client.phone,
+            "email": client.email,
+            "address": client.address
+        },
         "documents": [
             {
-                "id": doc.id,
+                "id": str(doc.id),
                 "type": doc.type.value,
                 "document_number": doc.document_number,
                 "status": doc.status.value,
-                "issue_date": doc.issue_date,
-                "due_date": doc.due_date,
+                "issue_date": doc.issue_date.isoformat() if doc.issue_date else None,
+                "due_date": doc.due_date.isoformat() if doc.due_date else None,
                 "total_amount": doc.total_amount,
                 "payment_status": doc.payment_status.value,
                 "paid_amount": doc.paid_amount,
                 "remaining_amount": doc.remaining_amount,
-                "pdf_url": f"/api/v1/client/documents/{doc.id}/pdf" if doc.pdf_path else None
+                "pdf_url": f"/api/v1/public/documents/{doc.id}/pdf"
             }
             for doc in documents
         ]
     }
 
-@router.get("/me/documents")
-async def get_my_documents(
-    doc_type: Optional[str] = Query(None, description="devis, facture, or avoir"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
-    current_client: Client = Depends(get_current_client)
-):
-    """Get client's documents"""
-    query = db.query(Document).filter(Document.client_id == current_client.id)
-    
-    if doc_type:
-        try:
-            type_enum = DocumentType(doc_type)
-            query = query.filter(Document.type == type_enum)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid document type: {doc_type}"
-            )
-    
-    documents = query.order_by(Document.issue_date.desc()).offset(skip).limit(limit).all()
-    
-    return [
-        {
-            "id": doc.id,
-            "type": doc.type.value,
-            "document_number": doc.document_number,
-            "status": doc.status.value,
-            "issue_date": doc.issue_date,
-            "due_date": doc.due_date,
-            "total_amount": doc.total_amount,
-            "payment_status": doc.payment_status.value,
-            "paid_amount": doc.paid_amount,
-            "remaining_amount": doc.remaining_amount,
-            "notes": doc.notes,
-            "order_number": doc.order.order_number if doc.order else None,
-            "download_url": f"/api/v1/client/documents/{doc.id}/pdf" if doc.pdf_path else None,
-            "can_pay": doc.type == DocumentType.FACTURE and doc.remaining_amount > 0
-        }
-        for doc in documents
-    ]
 
-@router.get("/me/documents/{document_id}/pdf")
-async def download_document_pdf(
-    document_id: UUID,
-    db: Session = Depends(get_db),
-    current_client: Client = Depends(get_current_client)
+@router.post("/verify-document")
+async def verify_document_access(
+    document_number: str = Query(..., description="Document number (e.g., DEV-20241208-0001)"),
+    verification_code: str = Query(..., description="Phone or email for verification"),
+    db: Session = Depends(get_db)
 ):
-    """Download document PDF"""
-    document = db.query(Document).filter(
-        Document.id == document_id,
-        Document.client_id == current_client.id
-    ).first()
+    """
+    Verify access to document using document number + phone/email
+    """
+    # Find document by number
+    document = db.query(Document).filter(Document.document_number == document_number).first()
     
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found"
+            detail="Document introuvable"
+        )
+    
+    client = document.client
+    
+    # Verify
+    verification_clean = verification_code.strip().lower()
+    if verification_clean not in [(client.phone or "").strip().lower(), (client.email or "").strip().lower()]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Code de vérification incorrect"
+        )
+    
+    return {
+        "success": True,
+        "document_id": str(document.id),
+        "document_number": document.document_number,
+        "document_type": document.type.value,
+        "client_name": client.company_name or f"{client.first_name} {client.last_name}",
+        "message": "Accès autorisé"
+    }
+
+
+@router.get("/documents/{document_id}")
+async def get_document_details(
+    document_id: UUID,
+    verification: str = Query(..., description="Phone or email for verification"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get document details - PUBLIC endpoint with verification
+    """
+    document = db.query(Document).filter(Document.id == document_id).first()
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document introuvable"
+        )
+    
+    client = document.client
+    
+    # Verify access
+    verification_clean = verification.strip().lower()
+    if verification_clean not in [(client.phone or "").strip().lower(), (client.email or "").strip().lower()]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès non autorisé"
+        )
+    
+    return {
+        "id": str(document.id),
+        "type": document.type.value,
+        "document_number": document.document_number,
+        "status": document.status.value,
+        "issue_date": document.issue_date.isoformat() if document.issue_date else None,
+        "due_date": document.due_date.isoformat() if document.due_date else None,
+        "accepted_date": document.accepted_date.isoformat() if document.accepted_date else None,
+        "total_amount": document.total_amount,
+        "payment_status": document.payment_status.value,
+        "paid_amount": document.paid_amount,
+        "remaining_amount": document.remaining_amount,
+        "notes": document.notes,
+        "order_number": document.order.order_number if document.order else None,
+        "download_url": f"/api/v1/public/documents/{document.id}/pdf",
+        "can_pay": document.type == DocumentType.FACTURE and document.remaining_amount > 0,
+        "items": [
+            {
+                "product_name": item.product_name,
+                "product_sku": item.product_sku,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "discount_percent": item.discount_percent,
+                "subtotal": item.subtotal
+            }
+            for item in document.items
+        ],
+        "client": {
+            "name": client.company_name or f"{client.first_name} {client.last_name}",
+            "type": client.type.value,
+            "phone": client.phone,
+            "email": client.email,
+            "address": client.address
+        }
+    }
+
+
+@router.get("/documents/{document_id}/pdf")
+async def download_document_pdf(
+    document_id: UUID,
+    verification: str = Query(..., description="Phone or email for verification"),
+    db: Session = Depends(get_db)
+):
+    """
+    Download document PDF - PUBLIC endpoint with verification
+    """
+    document = db.query(Document).filter(Document.id == document_id).first()
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document introuvable"
+        )
+    
+    client = document.client
+    
+    # Verify access
+    verification_clean = verification.strip().lower()
+    if verification_clean not in [(client.phone or "").strip().lower(), (client.email or "").strip().lower()]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès non autorisé"
         )
     
     if not document.pdf_path or not os.path.exists(document.pdf_path):
-        # Generate PDF on the fly if not exists
+        # Generate PDF on the fly
         pdf_generator = TunisianPDFGenerator()
         
-        if document.type == DocumentType.DEVIS:
-            pdf_path = pdf_generator.generate_devis_pdf(
-                devis=document,
-                client=current_client,
-                items=document.items
-            )
-        elif document.type == DocumentType.FACTURE:
-            pdf_path = pdf_generator.generate_facture_pdf(
-                facture=document,
-                client=current_client,
-                items=document.items,
-                payments=document.payments
-            )
-        else:
-            pdf_path = pdf_generator.generate_avoir_pdf(
-                avoir=document,
-                client=current_client,
-                items=document.items
-            )
+        # Convert to dicts
+        doc_dict = {
+            "id": document.id,
+            "document_number": document.document_number,
+            "status": document.status,
+            "issue_date": document.issue_date,
+            "due_date": document.due_date,
+            "accepted_date": document.accepted_date,
+            "subtotal": document.subtotal,
+            "tax_amount": document.tax_amount,
+            "discount": document.discount,
+            "shipping_fee": document.shipping_fee,
+            "total_amount": document.total_amount,
+            "payment_status": document.payment_status,
+            "paid_amount": document.paid_amount,
+            "remaining_amount": document.remaining_amount,
+            "notes": document.notes,
+            "terms": document.terms
+        }
         
-        document.pdf_path = pdf_path
-        db.commit()
+        client_dict = {
+            "id": client.id,
+            "type": client.type.value,
+            "company_name": client.company_name,
+            "first_name": client.first_name,
+            "last_name": client.last_name,
+            "fiscal_id": client.fiscal_id,
+            "address": client.address,
+            "phone": client.phone,
+            "email": client.email
+        }
+        
+        items_list = [
+            {
+                "product_name": item.product_name,
+                "product_sku": item.product_sku,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "discount_percent": item.discount_percent,
+                "tax_percent": item.tax_percent,
+                "subtotal": item.subtotal
+            }
+            for item in document.items
+        ]
+        
+        try:
+            if document.type == DocumentType.DEVIS:
+                pdf_path = pdf_generator.generate_devis_pdf(
+                    devis=doc_dict,
+                    client=client_dict,
+                    items=items_list
+                )
+            elif document.type == DocumentType.FACTURE:
+                payments_list = [
+                    {
+                        "amount": payment.amount,
+                        "payment_method": payment.payment_method,
+                        "payment_date": payment.payment_date,
+                        "reference_number": payment.reference_number,
+                        "notes": payment.notes
+                    }
+                    for payment in document.payments
+                ]
+                
+                pdf_path = pdf_generator.generate_facture_pdf(
+                    facture=doc_dict,
+                    client=client_dict,
+                    items=items_list,
+                    payments=payments_list
+                )
+            else:
+                pdf_path = pdf_generator.generate_avoir_pdf(
+                    avoir=doc_dict,
+                    client=client_dict,
+                    items=items_list
+                )
+            
+            document.pdf_path = pdf_path
+            db.commit()
+            
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Erreur lors de la génération du PDF: {str(e)}"
+            )
     
     # Return PDF file
     from fastapi.responses import FileResponse
@@ -217,96 +378,39 @@ async def download_document_pdf(
         filename=f"{document.document_number}.pdf"
     )
 
-@router.get("/me/stats")
-async def get_my_stats(
-    db: Session = Depends(get_db),
-    current_client: Client = Depends(get_current_client)
+
+# ============================================================================
+# TRACKING ENDPOINT - Check order status without full verification
+# ============================================================================
+
+@router.get("/track/{order_number}")
+async def track_order(
+    order_number: str,
+    db: Session = Depends(get_db)
 ):
-    """Get client statistics"""
-    from sqlalchemy import func
+    """
+    Quick order status check - No sensitive data exposed
+    """
+    order = db.query(Order).filter(Order.order_number == order_number).first()
     
-    # Order stats
-    order_stats = db.query(
-        func.count(Order.id).label('total_orders'),
-        func.sum(Order.total_amount).label('total_spent'),
-        func.avg(Order.total_amount).label('avg_order_value')
-    ).filter(Order.client_id == current_client.id).first()
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Commande introuvable"
+        )
     
-    # Document stats
-    doc_stats = db.query(
-        Document.type,
-        func.count(Document.id).label('count'),
-        func.sum(Document.total_amount).label('total_amount'),
-        func.sum(Document.remaining_amount).label('remaining_amount')
-    ).filter(
-        Document.client_id == current_client.id,
-        Document.type.in_([DocumentType.DEVIS, DocumentType.FACTURE])
-    ).group_by(Document.type).all()
-    
-    # Payment stats
-    payment_stats = db.query(
-        func.sum(Document.paid_amount).label('total_paid'),
-        func.sum(Document.remaining_amount).label('total_outstanding'),
-        func.count(Document.id).label('pending_factures')
-    ).filter(
-        Document.client_id == current_client.id,
-        Document.type == DocumentType.FACTURE,
-        Document.remaining_amount > 0
-    ).first()
-    
-    # Recent activity
-    recent_orders = db.query(Order).filter(
-        Order.client_id == current_client.id
-    ).order_by(Order.created_at.desc()).limit(5).all()
-    
-    recent_docs = db.query(Document).filter(
-        Document.client_id == current_client.id
-    ).order_by(Document.created_at.desc()).limit(5).all()
-    
+    # Return only non-sensitive tracking info
     return {
-        "client": {
-            "id": current_client.id,
-            "name": current_client.company_name or f"{current_client.first_name} {current_client.last_name}",
-            "type": current_client.type.value,
-            "member_since": current_client.created_at.strftime("%Y-%m-%d")
-        },
-        "order_stats": {
-            "total_orders": order_stats.total_orders or 0,
-            "total_spent": float(order_stats.total_spent or 0),
-            "avg_order_value": float(order_stats.avg_order_value or 0)
-        },
-        "document_stats": {
-            doc_type.type.value: {
-                "count": doc_type.count,
-                "total_amount": float(doc_type.total_amount or 0),
-                "remaining_amount": float(doc_type.remaining_amount or 0)
-            }
-            for doc_type in doc_stats
-        },
-        "payment_stats": {
-            "total_paid": float(payment_stats.total_paid or 0),
-            "total_outstanding": float(payment_stats.total_outstanding or 0),
-            "pending_factures": payment_stats.pending_factures or 0
-        },
-        "recent_activity": {
-            "orders": [
-                {
-                    "order_number": order.order_number,
-                    "date": order.created_at.strftime("%Y-%m-%d"),
-                    "status": order.status.value,
-                    "amount": order.total_amount
-                }
-                for order in recent_orders
-            ],
-            "documents": [
-                {
-                    "type": doc.type.value,
-                    "number": doc.document_number,
-                    "date": doc.issue_date.strftime("%Y-%m-%d"),
-                    "amount": doc.total_amount,
-                    "status": doc.status.value
-                }
-                for doc in recent_docs
-            ]
-        }
+        "order_number": order.order_number,
+        "status": order.status.value,
+        "status_label": {
+            "en_attente": "En attente de traitement",
+            "en_traitement": "En cours de traitement",
+            "confirme": "Confirmée",
+            "annule": "Annulée"
+        }.get(order.status.value, order.status.value),
+        "submitted_at": order.submitted_at.isoformat() if order.submitted_at else None,
+        "total_items": len(order.items),
+        "has_documents": len(order.documents) > 0,
+        "message": "Pour accéder aux détails complets, veuillez vérifier votre commande avec votre numéro de téléphone ou email."
     }

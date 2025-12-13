@@ -50,25 +50,46 @@ class DocumentService(BaseService[Document]):
             new_num = 1
         
         return f"{prefix}-{new_num:04d}"
-    
+
     def create_devis_from_order(
         self, 
         order_id: UUID, 
         devis_data: DevisFromOrder, 
         user_id: Optional[UUID] = None
     ) -> Document:
-        """Create a devis from a confirmed order"""
+        """Create a devis from a confirmed order with ALL information"""
         order = self.db.query(Order).options(
             joinedload(Order.items).joinedload(OrderItem.product),
             joinedload(Order.client)
         ).filter(Order.id == order_id).first()
-        
+    
         if not order:
-            raise ValueError("Order not found")
-        
+            raise ValueError("Commande introuvable")
+    
+        # VALIDATION CRITIQUE : Vérifier que la commande a des prix
         if not order.total_amount or order.total_amount == 0:
-            raise ValueError("Order must have pricing before creating devis")
-        
+            raise ValueError(
+                f"Impossible de créer un devis : la commande {order.order_number} n'a pas de prix défini. "
+                "Veuillez d'abord définir les prix des articles."
+            )
+    
+        # Vérifier que tous les items ont des prix
+        for item in order.items:
+            if not item.unit_price or item.unit_price == 0:
+                raise ValueError(
+                    f"Impossible de créer un devis : le produit '{item.product.name}' n'a pas de prix défini. "
+                    "Veuillez définir les prix avant de générer le devis."
+                )
+    
+        # Vérifier le client
+        if not order.client:
+            raise ValueError("Commande sans client associé")
+    
+        print(f"📋 Creating devis for order {order.order_number}")
+        print(f"   Client: {order.client.company_name if order.client.type == 'b2b' else f'{order.client.first_name} {order.client.last_name}'}")
+        print(f"   Total: {order.total_amount} DT")
+        print(f"   Items: {len(order.items)}")
+    
         # Create devis
         devis = Document(
             type=DocumentType.DEVIS,
@@ -78,50 +99,74 @@ class DocumentService(BaseService[Document]):
             order_id=order.id,
             issue_date=devis_data.issue_date,
             due_date=devis_data.due_date,
+        
+        # PRIX ET TOTAUX (copiés depuis la commande)
             subtotal=order.subtotal,
             tax_amount=order.tax_amount,
             discount=order.discount,
             shipping_fee=order.shipping_fee,
             total_amount=order.total_amount,
+        
+        # STATUT DE PAIEMENT
             payment_status=PaymentStatus.NON_PAYE,
             paid_amount=0.0,
             remaining_amount=order.total_amount,
+        
+        # NOTES ET CONDITIONS
             notes=devis_data.notes,
             terms=devis_data.terms,
+        
+        # VERSIONING
             version=1,
             is_latest_version=True
         )
         self.db.add(devis)
         self.db.flush()
-        
-        # Create devis items from order items
+    
+        print(f"✅ Devis {devis.document_number} created with ID: {devis.id}")
+    
+        # Créer les items du devis depuis les items de commande
         for order_item in order.items:
+            print(f"   Adding item: {order_item.product.name} x{order_item.quantity} @ {order_item.unit_price} DT")
+        
             devis_item = DocumentItem(
                 document_id=devis.id,
                 product_id=order_item.product_id,
                 product_name=order_item.product.name,
                 product_sku=order_item.product.sku,
-                description=order_item.product.short_description,
+                description=order_item.product.short_description or order_item.product.description,
                 quantity=order_item.quantity,
                 unit_price=order_item.unit_price,
                 discount_percent=order_item.discount_percent,
-                tax_percent=0.0,  # Calculate if needed
+                tax_percent=19.0,  # TVA Tunisia standard
                 subtotal=order_item.subtotal
             )
             self.db.add(devis_item)
-        
-        # Create history
+    
+        # Créer l'historique
         history = DocumentHistory(
             document_id=devis.id,
             changed_by=user_id,
             action="created",
-            description=f"Devis created from order {order.order_number}",
-            new_value=json.dumps({"status": DocumentStatus.EN_ATTENTE.value})
+            description=f"Devis créé automatiquement depuis la commande {order.order_number}",
+            new_value=json.dumps({
+                "status": DocumentStatus.EN_ATTENTE.value,
+                "order_number": order.order_number,
+                "client_name": order.client.company_name if order.client.type == 'b2b' else f"{order.client.first_name} {order.client.last_name}",
+                "client_email": order.client.email,
+                "total_amount": float(order.total_amount),
+                "items_count": len(order.items)
+            })
         )
         self.db.add(history)
-        
+    
         self.db.commit()
         self.db.refresh(devis)
+    
+        print(f"🎉 Devis {devis.document_number} successfully created!")
+        print(f"   Total: {devis.total_amount} DT")
+        print(f"   Status: {devis.status.value}")
+    
         return devis
     
     def create_document(

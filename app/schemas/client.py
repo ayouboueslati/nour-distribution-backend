@@ -31,6 +31,33 @@ class ClientCreate(BaseModel):
     preferred_contact_method: Optional[str] = None
     notes: Optional[str] = None
 
+class B2CCheckoutData(BaseModel):
+    """B2C client data for checkout"""
+    first_name: str
+    last_name: str
+    phone: str
+    email: Optional[str] = None
+    address: str
+    delivery_notes: Optional[str] = None
+    preferred_contact: Optional[str] = 'phone'
+
+class B2BCheckoutData(BaseModel):
+    """B2B client data for checkout"""
+    company_name: str
+    fiscal_id: str
+    contact_name: Optional[str] = None
+    phone: str
+    email: Optional[str] = None
+    address: str
+    payment_method: Optional[str] = 'virement'
+    notes: Optional[str] = None
+
+class GuestCheckoutRequest(BaseModel):
+    """Schema for guest checkout - matches frontend structure"""
+    is_company: bool
+    b2c_data: Optional[B2CCheckoutData] = None
+    b2b_data: Optional[B2BCheckoutData] = None
+
 class ClientUpdate(BaseModel):
     contact_name: Optional[str] = None
     email: Optional[EmailStr] = None

@@ -54,7 +54,7 @@ async def create_devis_from_order(
 async def get_all_devis(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    status: Optional[str] = Query(None, description="Filter by status"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter by status"),
     client_id: Optional[UUID] = Query(None, description="Filter by client"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager)
@@ -79,15 +79,16 @@ async def get_all_devis(
                 limit
             )
         
+        
         # Filter by status if provided
-        if status:
+        if status_filter:
             try:
-                status_enum = DocumentStatus(status)
+                status_enum = DocumentStatus(status_filter)
                 documents = [doc for doc in documents if doc.status == status_enum]
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid status: {status}"
+                    detail=f"Invalid status: {status_filter}"
                 )
         
         total = len(documents)
