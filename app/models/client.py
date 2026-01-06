@@ -1,9 +1,9 @@
-from sqlalchemy import Column, String, Text, Enum, Boolean
+from sqlalchemy import Column, String, Text, Enum, Boolean, Float
 from sqlalchemy.orm import relationship
 from .base import BaseModel
 import enum
 
-class ClientType(enum.Enum):
+class ClientType(str, enum.Enum):
     B2B = "b2b"
     B2C = "b2c"
 
@@ -22,6 +22,12 @@ class Client(BaseModel):
     company_name = Column(String(255))
     fiscal_id = Column(String(100))  # Matricule fiscal
     payment_method = Column(String(100))
+    
+    # Financial Limits & Suspension
+    credit_limit = Column(Float, default=0.0) # 0 means no limit or not set
+    current_balance = Column(Float, default=0.0) # Outstanding debt
+    is_suspended = Column(Boolean, default=False)
+    suspension_reason = Column(String(255), nullable=True)
     
     # B2C specific
     first_name = Column(String(100))

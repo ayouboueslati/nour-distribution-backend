@@ -1,0 +1,59 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<div class="email-container">
+    <div class="header">
+        <div class="logo">NOUR DISTRIBUTION</div>
+        <h1>Nouvelle Facture Disponible</h1>
+        <p>Une nouvelle facture a été générée pour votre compte</p>
+    </div>
+
+    <div class="content">
+        <h2>Bonjour {{ client_name }},</h2>
+
+        <div class="success">
+            <p>La facture <strong>#{{ facture_number }}</strong> a été créée avec succès.</p>
+            <p>Vous trouverez ci-dessous les détails de cette facture.</p>
+        </div>
+
+        <div class="info-box">
+            <h3 style="margin-bottom: 15px; color: #2c3e50;">Détails de la facture</h3>
+            <div class="info-item">
+                <span class="info-label">Numéro de facture:</span>
+                <span class="info-value">{{ facture_number }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Date d'émission:</span>
+                <span class="info-value">{{ issue_date }}</span>
+            </div>
+            {% if due_date %}
+            <div class="info-item">
+                <span class="info-label">Date d'échéance:</span>
+                <span class="info-value">{{ due_date }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="amount">
+            Total à payer: {{ total_amount|round(2) }} TND
+        </div>
+
+        <div class="warning">
+            <p><strong>Action requise:</strong> Merci de procéder au règlement avant la date d'échéance indiquée.</p>
+        </div>
+
+        <center>
+            <a href="{{ facture_url }}" class="button">Consulter et Payer</a>
+        </center>
+
+        <p style="margin-top: 30px; font-style: italic;">
+            Si vous avez déjà effectué le règlement, veuillez ignorer ce message.
+        </p>
+
+        <p style="margin-top: 20px;">
+            Cordialement,<br>
+            <strong>L'équipe NOUR DISTRIBUTION</strong>
+        </p>
+    </div>
+</div>
+{% endblock %}

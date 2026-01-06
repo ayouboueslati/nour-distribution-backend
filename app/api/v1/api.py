@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, users, categories, suppliers, products, 
     inventory, clients, carts, orders, documents,
-    client_portal
+    client_portal, analytics, charges, admin_notifications, delivery
 )
 from app.api.v1.endpoints.admin import users as admin_users
 from app.api.v1.endpoints.profile import users as profile_users
@@ -35,6 +35,17 @@ api_router.include_router(orders.router, prefix="/orders", tags=["orders"])
 # Document Management (Devis, Factures, Avoirs) - Admin only
 api_router.include_router(documents.router, prefix="/documents", tags=["documents"])
 
+# Analytics - Admin only
+api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
+
+# Charges (Manual Expenses) - Admin only
+api_router.include_router(charges.router, prefix="/charges", tags=["charges"])
+
+# Delivery
+api_router.include_router(delivery.router, prefix="/deliveries", tags=["deliveries"])
+
+# Admin Notifications - Admin only
+api_router.include_router(admin_notifications.router, prefix="/admin", tags=["admin-notifications"])
 
 # Public Portal - Guests can track orders and view documents with verification
 api_router.include_router(

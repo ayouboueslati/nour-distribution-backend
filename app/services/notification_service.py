@@ -6,19 +6,23 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from jinja2 import Template, Environment, FileSystemLoader
 import os
+from app.core.config import settings
 
 class NotificationService:
     """Email notification service for order status changes"""
     
     def __init__(self):
-        self.smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-        self.smtp_port = int(os.getenv("SMTP_PORT", 587))
-        self.smtp_username = os.getenv("SMTP_USERNAME")
-        self.smtp_password = os.getenv("SMTP_PASSWORD")
-        self.from_email = os.getenv("FROM_EMAIL", "noreply@nour-distribution.com")
+        self.smtp_server = settings.SMTP_SERVER
+        self.smtp_port = settings.SMTP_PORT
+        self.smtp_username = settings.SMTP_USERNAME
+        self.smtp_password = settings.SMTP_PASSWORD
+        self.from_email = settings.FROM_EMAIL
+        self.enabled = settings.EMAIL_ENABLED
         
         # Setup Jinja2 environment for templates
-        template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates', 'emails')
+        # Using absolute path relative to the app directory for better reliability
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        template_dir = os.path.join(current_dir, '..', 'templates')
         self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
     
     def _get_base_context(self):
@@ -34,10 +38,12 @@ class NotificationService:
     
     def send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None):
         """Send email"""
-        if not self.smtp_username or not self.smtp_password:
-            print(f"[EMAIL] Would send to {to_email}: {subject}")
-            print(f"[EMAIL] HTML Preview: {html_content[:200]}...")
+        if not to_email or "@" not in to_email:
+            print(f"[EMAIL] Skip sending: Invalid or missing recipient email: '{to_email}'")
             return
+            
+        if not self.enabled or not self.smtp_username or not self.smtp_password:
+            print(f"[EMAIL] Would send to {to_email}: {subject}")
         
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
@@ -60,12 +66,15 @@ class NotificationService:
             print(f"[EMAIL] Sent to {to_email}: {subject}")
             
         except Exception as e:
-            print(f"[EMAIL] Failed to send: {e}")
+            print(f"[EMAIL ERROR] Type: {type(e).__name__}")
+            print(f"[EMAIL ERROR] Details: {str(e)}")
+            import traceback
+            traceback.print_exc()
     
     def notify_order_submitted(self, order: Dict, client_email: str, client_name: str):
         """Notify client that order was submitted"""
         try:
-            template = self.jinja_env.get_template('order_submitted.html')
+            template = self.jinja_env.get_template('emails/order_submitted.html')
             
             context = self._get_base_context()
             context.update({
@@ -90,17 +99,17 @@ class NotificationService:
     def notify_order_processed(self, order: Dict, client_email: str, client_name: str, admin_name: str):
         """Notify client that order is being processed with pricing"""
         try:
-            template = self.jinja_env.get_template('order_processed.html')
+            template = self.jinja_env.get_template('emails/order_processed.html')
             
             context = self._get_base_context()
             context.update({
                 "client_name": client_name,
                 "order_number": order["order_number"],
                 "processed_by": admin_name,
-                "subtotal": order["subtotal"],
-                "shipping_fee": order["shipping_fee"],
-                "tax_amount": order["tax_amount"],
-                "total_amount": order["total_amount"],
+                "subtotal": float(order["subtotal"] or 0.0),
+                "shipping_fee": float(order["shipping_fee"] or 0.0),
+                "tax_amount": float(order["tax_amount"] or 0.0),
+                "total_amount": float(order["total_amount"] or 0.0),
                 "items": order["items"],
                 "devis_url": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/documents/{order.get('latest_devis_id', '')}"
             })
@@ -118,7 +127,7 @@ class NotificationService:
     def notify_order_confirmed(self, order: Dict, client_email: str, client_name: str):
         """Notify client that order was confirmed"""
         try:
-            template = self.jinja_env.get_template('order_confirmed.html')
+            template = self.jinja_env.get_template('emails/order_confirmed.html')
             
             context = self._get_base_context()
             context.update({
@@ -142,7 +151,7 @@ class NotificationService:
     def notify_devis_created(self, devis: Dict, client_email: str, client_name: str):
         """Notify client about new devis"""
         try:
-            template = self.jinja_env.get_template('devis_created.html')
+            template = self.jinja_env.get_template('emails/devis_created.html')
             
             context = self._get_base_context()
             context.update({
@@ -167,7 +176,7 @@ class NotificationService:
     def notify_devis_accepted(self, devis: Dict, client_email: str, client_name: str):
         """Notify client that devis was accepted"""
         try:
-            template = self.jinja_env.get_template('devis_accepted.html')
+            template = self.jinja_env.get_template('emails/devis_accepted.html')
             
             context = self._get_base_context()
             context.update({
@@ -194,7 +203,7 @@ class NotificationService:
         try:
             # Check if template exists, if not use a simple HTML string
             try:
-                template = self.jinja_env.get_template('facture_created.html')
+                template = self.jinja_env.get_template('emails/facture_created.html')
             except:
                 # Fallback simple template
                 template_str = """
@@ -234,7 +243,7 @@ class NotificationService:
     def notify_payment_received(self, payment: Dict, facture: Dict, client_email: str, client_name: str):
         """Notify client about payment received"""
         try:
-            template = self.jinja_env.get_template('payment_received.html')
+            template = self.jinja_env.get_template('emails/payment_received.html')
             
             context = self._get_base_context()
             context.update({

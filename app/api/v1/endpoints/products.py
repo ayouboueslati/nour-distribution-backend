@@ -13,6 +13,7 @@ from app.schemas.product import (
     StockUpdate
 )
 from app.schemas.product_image import ProductImageCreate, ProductImageResponse
+from app.utils.file_upload import save_upload_file, delete_file
 from app.services.product_service import ProductService
 from app.services.category_service import CategoryService
 from app.services.supplier_service import SupplierService
@@ -245,6 +246,145 @@ async def update_product_stock(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating stock: {str(e)}"
+        )
+
+@router.post("/{product_id}/upload-main-image", response_model=ProductAdminResponse)
+async def upload_main_image(
+    product_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Upload main product image - Manager+ only
+    """
+    product_service = ProductService(db)
+    product = product_service.get_by_id(product_id)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+    
+    # Save file
+    try:
+        file_path = await save_upload_file(file, subfolder=str(product_id))
+        
+        # Delete old image if exists
+        if product.main_image:
+            old_image_path = product.main_image
+            # Only delete if it's a local file (in static/products)
+            if "products/" in old_image_path:
+                 delete_file(old_image_path)
+        
+        # Update product directly to ensure DB save
+        product.main_image = file_path
+        db.commit()
+        db.refresh(product)
+        
+        return product
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading image: {str(e)}"
+        )
+
+@router.post("/{product_id}/upload-additional-images", response_model=ProductAdminResponse)
+async def upload_additional_images(
+    product_id: UUID,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Upload additional product images - Manager+ only
+    """
+    product_service = ProductService(db)
+    product = product_service.get_by_id(product_id)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+        
+    try:
+        new_image_paths = []
+        for file in files:
+            file_path = await save_upload_file(file, subfolder=str(product_id))
+            new_image_paths.append(file_path)
+            
+        # Get existing images
+        existing_images = product.additional_images or []
+        # Ensure it's a list (it might be None or empty)
+        if not isinstance(existing_images, list):
+            existing_images = []
+            
+        # Append new images
+        # Append new images
+        # IMPORTANT: Create a NEW list to ensure SQLAlchemy detects the change in JSON field
+        updated_images = list(existing_images) + new_image_paths
+        
+        # Update product directly
+        product.additional_images = updated_images
+        db.commit()
+        db.refresh(product)
+        
+        return product
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading images: {str(e)}"
+        )
+
+@router.delete("/{product_id}/images", response_model=ProductAdminResponse)
+async def delete_product_image(
+    product_id: UUID,
+    image_path: str = Query(..., description="Path of the image to delete"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Delete a product image (main or additional) - Manager+ only
+    """
+    product_service = ProductService(db)
+    product = product_service.get_by_id(product_id)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+        
+    try:
+        updated = False
+        update_data = ProductUpdate()
+        
+        # Check if it's the main image
+        if product.main_image == image_path:
+            update_data.main_image = None
+            if delete_file(image_path):
+                updated = True
+        
+        # Check additional images
+        existing_images = product.additional_images or []
+        if image_path in existing_images:
+            existing_images.remove(image_path)
+            update_data.additional_images = existing_images
+            if delete_file(image_path):
+                updated = True
+        
+        if updated or (image_path in (product.additional_images or []) or image_path == product.main_image):
+             # Even if file delete failed (maybe missing), update DB
+             return product_service.update_product(product_id, update_data)
+        
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not associated with this product"
+        )
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting image: {str(e)}"
         )
 
 @router.get("/{product_id}/low-stock")

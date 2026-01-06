@@ -6,7 +6,7 @@ import enum
 import uuid
 from datetime import datetime
 
-class UserRole(enum.Enum):
+class UserRole(str, enum.Enum):
     SUPER_ADMIN = "super_admin"
     ADMIN = "admin"
     MANAGER = "manager"

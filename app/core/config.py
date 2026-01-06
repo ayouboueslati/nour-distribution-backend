@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     BCRYPT_ROUNDS: int = 12
     
+    # Email Settings
+    SMTP_SERVER: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    FROM_EMAIL: str = "noreply@nour-distribution.com"
+    EMAIL_ENABLED: bool = True
+    
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000","http://192.168.167.1:3000"]
     

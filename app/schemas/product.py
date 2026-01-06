@@ -47,6 +47,7 @@ class ProductBase(BaseModel):
     
     # Media
     main_image: Optional[str] = Field(None, max_length=500)
+    additional_images: Optional[List[str]] = None
     
     # SEO
     meta_title: Optional[str] = Field(None, max_length=255)
@@ -147,6 +148,7 @@ class ProductPublicResponse(BaseModel):
     is_best_seller: bool
     is_new_arrival: bool
     main_image: Optional[str]
+    additional_images: Optional[List[str]] = None
     
     # Timestamps
     created_at: datetime

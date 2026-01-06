@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from .base import BaseModel
 import enum
 
-class MovementType(enum.Enum):
+class MovementType(str, enum.Enum):
     STOCK_IN = "stock_in"  # Restock, purchase
     STOCK_OUT = "stock_out"  # Sale, damage, adjustment
     RESERVED = "reserved"  # Reserved for orders

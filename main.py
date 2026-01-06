@@ -13,6 +13,16 @@ app = FastAPI(
     redoc_url="/redoc" # Explicitly set redoc URL
 )
 
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Create static directory if it doesn't exist
+if not os.path.exists("static"):
+    os.makedirs("static")
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,

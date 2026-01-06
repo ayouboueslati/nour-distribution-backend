@@ -1,6 +1,6 @@
 from typing import Dict, List
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -66,7 +66,7 @@ class StockValidator:
         pending_reservations = self.db.query(func.sum(CartItem.quantity)).filter(
             CartItem.product_id == product_id,
             CartItem.reserved_at.isnot(None),
-            CartItem.reservation_expires_at > datetime.utcnow()
+            CartItem.reservation_expires_at > datetime.now(timezone.utc)
         ).scalar() or 0
         
         return {

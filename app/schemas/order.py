@@ -14,9 +14,11 @@ class OrderStatusEnum(str, Enum):
     PROCESSING = "PROCESSING"
     CONFIRMED = "CONFIRMED"
     CANCELLED = "CANCELLED"
+    REJECTED = "REJECTED"
     DRAFT = "DRAFT"
     SHIPPED = "SHIPPED"
     DELIVERED = "DELIVERED"
+    COMPLETED = "COMPLETED"
 
 # Order Item Schemas
 class OrderItemCreate(BaseModel):
@@ -124,6 +126,10 @@ class OrderResponse(BaseModel):
     items: List[OrderItemResponse] = []
     documents: List['DocumentResponse'] = []
     client: Optional[ClientResponse] = None
+    
+    # Devis tracking
+    devis_count: int = 0
+    latest_devis: Optional['DocumentResponse'] = None
 
 class OrderListResponse(BaseModel):
     orders: List[OrderResponse]

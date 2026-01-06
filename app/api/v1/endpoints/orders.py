@@ -89,7 +89,8 @@ async def get_orders(
     try:
         if order_status:
             try:
-                status_enum = OrderStatus(order_status)
+                # Handle case-insensitive status
+                status_enum = OrderStatus(order_status.upper())
                 orders = order_service.get_orders_by_status(status_enum, skip, limit)
             except ValueError:
                 raise HTTPException(
@@ -109,6 +110,8 @@ async def get_orders(
             page=skip // limit + 1,
             page_size=limit
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -123,8 +126,13 @@ async def get_order(
 ):
     """
     Get order details - Manager+ only
+    Includes devis tracking information (count and latest devis)
     """
+    from app.models.document import DocumentType
+    from app.services.document_service import DocumentService
+    
     order_service = OrderService(db)
+    document_service = DocumentService(db)
     
     order = order_service.get_order_with_details(order_id)
     if not order:
@@ -132,6 +140,24 @@ async def get_order(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Order not found"
         )
+    
+    # Enrich order with devis information
+    try:
+        devis_list, total = document_service.get_devis_by_order(
+            order_id=order_id,
+            include_versions=False,  # Only latest versions
+            skip=0,
+            limit=1  # Get just the latest for the summary
+        )
+        
+        # Add devis tracking info to order response
+        order.devis_count = total
+        order.latest_devis = devis_list[0] if devis_list else None
+    except Exception as e:
+        # Log error but don't fail the request
+        print(f"Warning: Could not fetch devis for order {order_id}: {str(e)}")
+        order.devis_count = 0
+        order.latest_devis = None
     
     return order
 

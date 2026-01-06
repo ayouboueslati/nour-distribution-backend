@@ -1,13 +1,13 @@
 from typing import List, Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, desc
 import json
 
 from app.models.document import (
     Document, DocumentItem, DocumentHistory, Payment,
-    DocumentType, DocumentStatus, PaymentStatus
+    DocumentType, DocumentStatus, PaymentStatus, PaymentTerms, AvoirReason
 )
 from app.models.order import Order, OrderItem
 from app.models.product import Product
@@ -25,16 +25,22 @@ class DocumentService(BaseService[Document]):
     
     def generate_document_number(self, doc_type: DocumentType) -> str:
         """Generate unique document number"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         
+        # Look up prefix by value to handle both Model Enums and Schema Enums
         prefix_map = {
-            DocumentType.DEVIS: "DEV",
-            DocumentType.FACTURE: "FACT",
-            DocumentType.AVOIR: "AV"
+            DocumentType.DEVIS.value: "DEV",
+            DocumentType.FACTURE.value: "FACT",
+            DocumentType.AVOIR.value: "AV"
         }
         
-        prefix = f"{prefix_map[doc_type]}-{now.strftime('%Y%m%d')}"
+        # Ensure we use the value for lookup
+        doc_type_value = doc_type.value if hasattr(doc_type, 'value') else doc_type
         
+        if doc_type_value not in prefix_map:
+            raise ValueError(f"Invalid document type: {doc_type}")
+            
+        prefix = f"{prefix_map[doc_type_value]}-{now.strftime('%Y%m%d')}"        
         # Get last document number for today
         last_doc = self.db.query(Document).filter(
             and_(
@@ -118,7 +124,10 @@ class DocumentService(BaseService[Document]):
         
         # VERSIONING
             version=1,
-            is_latest_version=True
+            is_latest_version=True,
+            
+            # New fields
+            valid_until=devis_data.due_date, # Default validity to due date
         )
         self.db.add(devis)
         self.db.flush()
@@ -300,18 +309,26 @@ class DocumentService(BaseService[Document]):
                 # Create new items from update data
                 for item_update in update_data.items:
                     # Find corresponding old item
-                    old_item = next((item for item in document.items if item.id == item_update.id), None)
+                    old_item = next((item for item in document.items if str(item.id) == str(item_update.id)), None)
                     if old_item:
+                        qty = int(item_update.quantity if item_update.quantity is not None else old_item.quantity)
+                        price = float(item_update.unit_price if item_update.unit_price is not None else old_item.unit_price)
+                        disc = float(item_update.discount_percent if item_update.discount_percent is not None else old_item.discount_percent)
+                        tax = float(item_update.tax_percent if item_update.tax_percent is not None else old_item.tax_percent)
+                        
+                        # Recalculate subtotal
+                        item_subtotal = (float(qty) * price * (1 - disc / 100))
+                        
                         new_item = DocumentItem(
                             document_id=new_document.id,
                             product_id=old_item.product_id,
                             product_name=old_item.product_name,
                             product_sku=old_item.product_sku,
-                            quantity=item_update.quantity if item_update.quantity else old_item.quantity,
-                            unit_price=item_update.unit_price if item_update.unit_price else old_item.unit_price,
-                            discount_percent=item_update.discount_percent if item_update.discount_percent is not None else old_item.discount_percent,
-                            tax_percent=item_update.tax_percent if item_update.tax_percent is not None else old_item.tax_percent,
-                            subtotal=old_item.subtotal
+                            quantity=qty,
+                            unit_price=price,
+                            discount_percent=disc,
+                            tax_percent=tax,
+                            subtotal=item_subtotal
                         )
                         self.db.add(new_item)
             else:
@@ -390,7 +407,29 @@ class DocumentService(BaseService[Document]):
         
         old_status = devis.status
         devis.status = DocumentStatus.ACCEPTE
-        devis.accepted_date = datetime.utcnow()
+        devis.accepted_date = datetime.now(timezone.utc)
+        
+        # Update parent Order status if exists
+        if devis.order_id:
+            from app.models.order import Order, OrderStatus
+            order = self.db.query(Order).filter(Order.id == devis.order_id).first()
+            if order and order.status != OrderStatus.CONFIRMED:
+                print(f"🔄 Updating parent order {order.order_number} status to CONFIRMED")
+                old_order_status = order.status
+                order.status = OrderStatus.CONFIRMED
+                order.confirmed_at = datetime.now(timezone.utc)
+                
+                # Add order history
+                from app.models.order import OrderHistory
+                order_history = OrderHistory(
+                    order_id=order.id,
+                    changed_by=user_id,
+                    action="status_changed",
+                    old_value=old_order_status.value,
+                    new_value=OrderStatus.CONFIRMED.value,
+                    notes=f"Auto-updated from Devis {devis.document_number} acceptance"
+                )
+                self.db.add(order_history)
         
         # Create history
         history = DocumentHistory(
@@ -400,6 +439,50 @@ class DocumentService(BaseService[Document]):
             description="Devis accepted",
             old_value=old_status.value,
             new_value=DocumentStatus.ACCEPTE.value
+        )
+        self.db.add(history)
+        
+        self.db.commit()
+        self.db.refresh(devis)
+        return devis
+
+    def reject_devis(self, devis_id: UUID, reason: str, user_id: Optional[UUID] = None) -> Document:
+        """Reject a devis and release associated order stock"""
+        devis = self.db.query(Document).filter(
+            and_(
+                Document.id == devis_id,
+                Document.type == DocumentType.DEVIS
+            )
+        ).first()
+        
+        if not devis:
+            raise ValueError("Devis not found")
+            
+        if devis.status not in [DocumentStatus.EN_ATTENTE, DocumentStatus.BROUILLON]:
+            raise ValueError(f"Cannot reject devis in status {devis.status.value}")
+            
+        old_status = devis.status
+        devis.status = DocumentStatus.REFUSE
+        
+        # Release stock if order exists (Audit Point B.4)
+        if devis.order_id:
+            from app.services.order_service import OrderService
+            order_service = OrderService(self.db)
+            try:
+                # We reuse reject_order logic to release stock and update order status
+                print(f"📉 Rejecting associated order {devis.order_id} for devis {devis.document_number}")
+                order_service.reject_order(devis.order_id, reason=f"Devis rejected: {reason}", user_id=user_id)
+            except Exception as e:
+                print(f"⚠️ Failed to auto-reject order: {e}")
+                
+        # History
+        history = DocumentHistory(
+            document_id=devis.id,
+            changed_by=user_id,
+            action="rejected",
+            description=f"Devis rejected. Reason: {reason}",
+            old_value=old_status.value,
+            new_value=DocumentStatus.REFUSE.value
         )
         self.db.add(history)
         
@@ -423,6 +506,10 @@ class DocumentService(BaseService[Document]):
         
         if devis.status != DocumentStatus.ACCEPTE:
             raise ValueError("Devis must be accepted before converting to facture")
+            
+        # Check devis expiration (Audit Point B.3)
+        if devis.valid_until and devis.valid_until < datetime.now(timezone.utc):
+            raise ValueError(f"Devis expired on {devis.valid_until}. Cannot convert to facture.")
         
         # Create facture from devis
         facture = Document(
@@ -431,21 +518,25 @@ class DocumentService(BaseService[Document]):
             status=DocumentStatus.EN_ATTENTE,
             client_id=devis.client_id,
             order_id=devis.order_id,
-            issue_date=datetime.utcnow(),
+            issue_date=datetime.now(timezone.utc),
             due_date=devis.due_date,
-            subtotal=devis.subtotal,
-            tax_amount=devis.tax_amount,
-            discount=devis.discount,
-            shipping_fee=devis.shipping_fee,
-            total_amount=devis.total_amount,
+            subtotal=float(devis.subtotal or 0),
+            tax_amount=float(devis.tax_amount or 0),
+            discount=float(devis.discount or 0),
+            shipping_fee=float(devis.shipping_fee or 0),
+            total_amount=float(devis.total_amount or 0),
             payment_status=PaymentStatus.NON_PAYE,
             paid_amount=0.0,
-            remaining_amount=devis.total_amount,
+            remaining_amount=float(devis.total_amount or 0),
             notes=devis.notes,
             terms=devis.terms,
             reference_document_id=devis.id,
             version=1,
-            is_latest_version=True
+            is_latest_version=True,
+            
+            # Facture specific
+            payment_terms=PaymentTerms.IMMEDIATE, # Default
+            payment_deadline=devis.due_date # Default deadline
         )
         self.db.add(facture)
         self.db.flush()
@@ -458,11 +549,11 @@ class DocumentService(BaseService[Document]):
                 product_name=devis_item.product_name,
                 product_sku=devis_item.product_sku,
                 description=devis_item.description,
-                quantity=devis_item.quantity,
-                unit_price=devis_item.unit_price,
-                discount_percent=devis_item.discount_percent,
-                tax_percent=devis_item.tax_percent,
-                subtotal=devis_item.subtotal
+                quantity=int(devis_item.quantity or 0),
+                unit_price=float(devis_item.unit_price or 0),
+                discount_percent=float(devis_item.discount_percent or 0),
+                tax_percent=float(devis_item.tax_percent or 0),
+                subtotal=float(devis_item.subtotal or 0)
             )
             self.db.add(facture_item)
         
@@ -497,18 +588,26 @@ class DocumentService(BaseService[Document]):
             
             if order and order.stock_reserved:
                 for item in order.items:
-                    product = self.db.query(Product).filter(Product.id == item.product_id).first()
+                    # LOCKING: Use with_for_update to prevent race conditions during stock deduction
+                    product = self.db.query(Product).with_for_update().filter(Product.id == item.product_id).first()
                     if product:
+                        req_qty = int(item.quantity or 0)
+                        available_stock = int(product.stock_quantity or 0)
+                        
+                        # Check stock availability first (Critical Audit Point A.4)
+                        if available_stock < req_qty:
+                            raise ValueError(f"Stock insuffisant pour {product.name} (Requis: {req_qty}, Réel: {available_stock})")
+
                         # Reduce both actual stock and reserved quantity
-                        product.stock_quantity -= item.quantity
-                        product.reserved_quantity = max(0, product.reserved_quantity - item.quantity)
+                        product.stock_quantity = available_stock - req_qty
+                        product.reserved_quantity = max(0, int(product.reserved_quantity or 0) - req_qty)
                         
                         # Create inventory movement
                         movement = InventoryMovement(
                             product_id=product.id,
                             movement_type=MovementType.STOCK_OUT,
-                            quantity=item.quantity,
-                            previous_stock=product.stock_quantity + item.quantity,
+                            quantity=req_qty,
+                            previous_stock=available_stock,
                             new_stock=product.stock_quantity,
                             reference_type="facture",
                             reference_id=facture.id,
@@ -517,9 +616,54 @@ class DocumentService(BaseService[Document]):
                             performed_by=user_id
                         )
                         self.db.add(movement)
+                        
+                        # Check if stock deduction triggers any alerts
+                        from app.services.stock_alert_service import StockAlertService
+                        alert_service = StockAlertService(self.db)
+                        alert_service.check_and_create_alerts()
                 
                 order.stock_reserved = False
+                
+                # Ensure Order Status is CONFIRMED (if not already)
+                from app.models.order import OrderStatus
+                if order.status != OrderStatus.CONFIRMED:
+                     order.status = OrderStatus.CONFIRMED
+                     # We can add history here if strictly needed, but it might be redundant if already confirmed by accept_devis
         
+        # Send admin notification
+        try:
+            from app.services.admin_notification_service import AdminNotificationService
+            notification_service = AdminNotificationService(self.db)
+            notification_service.notify_facture_created(
+                facture_number=facture.document_number,
+                devis_number=devis.document_number,
+                total_amount=float(facture.total_amount),
+                facture_id=facture.id,
+                user_id=user_id
+            )
+        except Exception as e:
+            print(f"Failed to send facture admin notification: {e}")
+            
+        # Send Client Email Notification
+        try:
+            from app.services.notification_service import NotificationService
+            client_notification = NotificationService()
+            client_name = devis.client.company_name if devis.client.type == "b2b" else f"{devis.client.first_name} {devis.client.last_name}"
+            
+            client_notification.notify_facture_created(
+                {
+                    "id": str(facture.id),
+                    "document_number": facture.document_number,
+                    "issue_date": facture.issue_date,
+                    "total_amount": float(facture.total_amount),
+                    "due_date": facture.due_date
+                },
+                devis.client.email,
+                client_name
+            )
+        except Exception as e:
+            print(f"Failed to send facture client email: {e}")
+            
         self.db.commit()
         self.db.refresh(facture)
         return facture
@@ -529,7 +673,7 @@ class DocumentService(BaseService[Document]):
         avoir_data: AvoirFromFacture, 
         user_id: Optional[UUID] = None
     ) -> Document:
-        """Create an avoir (credit note) from a facture"""
+        """Create an avoir (credit note) from a facture with selected products"""
         facture = self.db.query(Document).options(
             joinedload(Document.items)
         ).filter(
@@ -542,11 +686,35 @@ class DocumentService(BaseService[Document]):
         if not facture:
             raise ValueError("Facture not found")
         
-        # Calculate avoir total
-        avoir_total = sum(
-            item.quantity * item.unit_price * (1 - item.discount_percent / 100)
+        # VALIDATION: Ensure items are provided for product selection
+        if not avoir_data.items or len(avoir_data.items) == 0:
+            raise ValueError("Vous devez sélectionner au moins un produit pour créer un avoir")
+        
+        # VALIDATION: Verify all selected products exist in the facture
+        facture_product_ids = {str(item.product_id) for item in facture.items}
+        for item_data in avoir_data.items:
+            if str(item_data.product_id) not in facture_product_ids:
+                raise ValueError(f"Le produit {item_data.product_id} n'existe pas dans la facture")
+        
+        # VALIDATION: Check returned quantities don't exceed facture quantities
+        for item_data in avoir_data.items:
+            facture_item = next((item for item in facture.items if item.product_id == item_data.product_id), None)
+            if facture_item and item_data.quantity > facture_item.quantity:
+                raise ValueError(f"La quantité retournée ({item_data.quantity}) dépasse la quantité facturée ({facture_item.quantity}) pour le produit {facture_item.product_name}")
+        
+        # Calculate avoir total based on selected items
+        avoir_total = float(sum(
+            float(item.quantity) * float(item.unit_price) * (1 - float(item.discount_percent) / 100)
             for item in avoir_data.items
-        )
+        ))
+        
+        if avoir_total <= 0:
+            raise ValueError("Le montant de l'avoir doit être supérieur à 0")
+        
+        # VALIDATION: Check if avoir total exceeds facture total
+        existing_avoirs_total = float(sum(float(d.total_amount) for d in facture.related_documents if d.type == DocumentType.AVOIR))
+        if existing_avoirs_total + avoir_total > float(facture.total_amount):
+            raise ValueError(f"Impossible de créer un avoir de {avoir_total} DT. Total des avoirs ({existing_avoirs_total + avoir_total}) dépasserait le montant de la facture ({facture.total_amount}).")
         
         # Create avoir
         avoir = Document(
@@ -555,7 +723,7 @@ class DocumentService(BaseService[Document]):
             status=DocumentStatus.EN_ATTENTE,
             client_id=facture.client_id,
             order_id=facture.order_id,
-            issue_date=datetime.utcnow(),
+            issue_date=datetime.now(timezone.utc),
             subtotal=avoir_total,
             tax_amount=0.0,
             discount=0.0,
@@ -567,12 +735,14 @@ class DocumentService(BaseService[Document]):
             notes=f"{avoir_data.reason}\n{avoir_data.notes or ''}",
             reference_document_id=facture.id,
             version=1,
-            is_latest_version=True
+            is_latest_version=True,
+            avoir_reason=avoir_data.reason
         )
         self.db.add(avoir)
         self.db.flush()
         
-        # Create avoir items
+        # Create avoir items and return stock ONLY for selected products
+        returned_items_count = 0
         for item_data in avoir_data.items:
             product = self.db.query(Product).filter(Product.id == item_data.product_id).first()
             
@@ -582,16 +752,17 @@ class DocumentService(BaseService[Document]):
                 product_name=product.name if product else "Unknown",
                 product_sku=product.sku if product else "",
                 quantity=item_data.quantity,
-                unit_price=item_data.unit_price,
-                discount_percent=item_data.discount_percent,
-                tax_percent=item_data.tax_percent,
-                subtotal=item_data.quantity * item_data.unit_price * (1 - item_data.discount_percent / 100)
+                unit_price=float(item_data.unit_price),
+                discount_percent=float(item_data.discount_percent),
+                tax_percent=float(item_data.tax_percent),
+                subtotal=float(item_data.quantity) * float(item_data.unit_price) * (1 - float(item_data.discount_percent) / 100)
             )
             self.db.add(avoir_item)
             
-            # Return stock if needed
+            # Return stock ONLY for selected products
             if product:
                 product.stock_quantity += item_data.quantity
+                returned_items_count += 1
                 
                 # Create inventory movement
                 movement = InventoryMovement(
@@ -607,21 +778,26 @@ class DocumentService(BaseService[Document]):
                     performed_by=user_id
                 )
                 self.db.add(movement)
+                
+                # Check if this resolves any stock alerts
+                from app.services.stock_alert_service import StockAlertService
+                alert_service = StockAlertService(self.db)
+                alert_service.check_and_create_alerts()
         
         # Update facture payment status if avoir affects it
-        if avoir_total >= facture.remaining_amount:
+        if avoir_total >= float(facture.remaining_amount):
             facture.payment_status = PaymentStatus.PAYE
             facture.remaining_amount = 0.0
         else:
-            facture.remaining_amount -= avoir_total
+            facture.remaining_amount = float(facture.remaining_amount) - avoir_total
         
         # Create histories
         avoir_history = DocumentHistory(
             document_id=avoir.id,
             changed_by=user_id,
             action="created_from_facture",
-            description=f"Avoir created from facture {facture.document_number}. Reason: {avoir_data.reason}",
-            new_value=json.dumps({"total_amount": avoir_total})
+            description=f"Avoir created from facture {facture.document_number}. Reason: {avoir_data.reason}. {returned_items_count} product(s) returned to stock.",
+            new_value=json.dumps({"total_amount": avoir_total, "items_returned": returned_items_count})
         )
         self.db.add(avoir_history)
         
@@ -634,6 +810,21 @@ class DocumentService(BaseService[Document]):
             new_value=str(facture.remaining_amount)
         )
         self.db.add(facture_history)
+        
+        # Send admin notification
+        try:
+            from app.services.admin_notification_service import AdminNotificationService
+            notification_service = AdminNotificationService(self.db)
+            notification_service.notify_avoir_created(
+                avoir_number=avoir.document_number,
+                facture_number=facture.document_number,
+                total_amount=avoir_total,
+                returned_items_count=returned_items_count,
+                avoir_id=avoir.id,
+                user_id=user_id
+            )
+        except Exception as e:
+            print(f"Failed to send avoir notification: {e}")
         
         self.db.commit()
         self.db.refresh(avoir)
@@ -655,7 +846,7 @@ class DocumentService(BaseService[Document]):
         if document.type != DocumentType.FACTURE:
             raise ValueError("Payments can only be added to factures")
         
-        if payment_data.amount > document.remaining_amount:
+        if payment_data.amount > float(document.remaining_amount):
             raise ValueError("Payment amount exceeds remaining amount")
         
         # Create payment
@@ -671,12 +862,32 @@ class DocumentService(BaseService[Document]):
         self.db.add(payment)
         
         # Update document payment status
-        document.paid_amount += payment_data.amount
-        document.remaining_amount -= payment_data.amount
+        document.paid_amount = float(document.paid_amount) + float(payment_data.amount)
+        document.remaining_amount = float(document.remaining_amount) - float(payment_data.amount)
         
         if document.remaining_amount == 0:
             document.payment_status = PaymentStatus.PAYE
             document.status = DocumentStatus.PAYE
+            
+            # Sync with parent Order
+            if document.order_id:
+                from app.models.order import Order, OrderStatus, OrderHistory
+                order = self.db.query(Order).filter(Order.id == document.order_id).first()
+                if order and order.status != OrderStatus.COMPLETED:
+                    print(f"🔄 Facture paid - updating order {order.order_number} to COMPLETED")
+                    old_order_status = order.status
+                    order.status = OrderStatus.COMPLETED
+                    
+                    # Add order history
+                    order_history = OrderHistory(
+                        order_id=order.id,
+                        changed_by=user_id,
+                        action="status_changed",
+                        old_value=old_order_status.value,
+                        new_value=OrderStatus.COMPLETED.value,
+                        notes=f"Order completed automatically after full payment of Facture {document.document_number}"
+                    )
+                    self.db.add(order_history)
         elif document.paid_amount > 0:
             document.payment_status = PaymentStatus.PARTIEL
         
@@ -695,6 +906,38 @@ class DocumentService(BaseService[Document]):
         self.db.add(history)
         
         self.db.commit()
+        self.db.refresh(payment)
+        
+        # Send notification
+        try:
+            from app.services.notification_service import NotificationService
+            from app.models.client import Client  # Import Client if not available on Document relationship directly
+            
+            # Need to get client info. Document might have client relationship loaded or we fetch it
+            client = self.db.query(Client).filter(Client.id == document.client_id).first()
+            if client:
+                notification_service = NotificationService()
+                client_name = client.company_name if client.type == "b2b" else f"{client.first_name} {client.last_name}"
+                
+                notification_service.notify_payment_received(
+                    {
+                        "id": str(payment.id),
+                        "amount": float(payment.amount),
+                        "payment_method": payment.payment_method.value,
+                        "payment_date": payment.payment_date
+                    },
+                    {
+                        "id": str(document.id),
+                        "document_number": document.document_number,
+                        "remaining_amount": float(document.remaining_amount)
+                    },
+                    client.email,
+                    client_name
+                )
+        except Exception as e:
+            print(f"Failed to send payment receipt email: {e}")
+            
+        return payment
         self.db.refresh(payment)
         return payment
     
@@ -747,3 +990,107 @@ class DocumentService(BaseService[Document]):
             query = query.filter(Document.type == doc_type)
         
         return query.order_by(desc(Document.created_at)).offset(skip).limit(limit).all()
+    
+    def get_devis_by_order(
+        self,
+        order_id: UUID,
+        include_versions: bool = False,
+        skip: int = 0,
+        limit: int = 100
+    ) -> tuple[List[Document], int]:
+        """
+        Get all devis for a specific order with pagination.
+        Returns (devis_list, total_count)
+        """
+        # Base query
+        query = self.db.query(Document).filter(
+            and_(
+                Document.order_id == order_id,
+                Document.type == DocumentType.DEVIS
+            )
+        ).options(
+            joinedload(Document.items),
+            joinedload(Document.client),
+            joinedload(Document.history).joinedload(DocumentHistory.user)
+        )
+        
+        # Filter by latest version if not including all versions
+        if not include_versions:
+            query = query.filter(Document.is_latest_version == True)
+        
+        # Get total count
+        total = query.count()
+        
+        # Get paginated results
+        devis_list = query.order_by(desc(Document.created_at)).offset(skip).limit(limit).all()
+        
+        return devis_list, total
+    
+    def get_facture_source_devis(self, facture_id: UUID) -> Optional[Document]:
+        """
+        Get the source devis that was converted to this facture.
+        Returns the latest version of the devis by default.
+        """
+        facture = self.db.query(Document).filter(
+            and_(
+                Document.id == facture_id,
+                Document.type == DocumentType.FACTURE
+            )
+        ).first()
+        
+        if not facture or not facture.reference_document_id:
+            return None
+        
+        # Get the devis that this facture was created from
+        devis = self.db.query(Document).options(
+            joinedload(Document.items),
+            joinedload(Document.client),
+            joinedload(Document.history).joinedload(DocumentHistory.user)
+        ).filter(
+            Document.id == facture.reference_document_id
+        ).first()
+        
+        return devis
+    
+    def get_devis_timeline(self, order_id: UUID) -> List[Dict[str, Any]]:
+        """
+        Get timeline of all devis events for an order.
+        Returns a chronological list of all devis-related events.
+        """
+        # Get all devis for this order (all versions)
+        all_devis = self.db.query(Document).filter(
+            and_(
+                Document.order_id == order_id,
+                Document.type == DocumentType.DEVIS
+            )
+        ).options(
+            joinedload(Document.history).joinedload(DocumentHistory.user)
+        ).order_by(Document.created_at).all()
+        
+        timeline_events = []
+        
+        for devis in all_devis:
+            # Add all history events for this devis
+            for history in devis.history:
+                event = {
+                    "event_type": history.action,
+                    "devis_id": str(devis.id),
+                    "devis_number": devis.document_number,
+                    "version": devis.version,
+                    "timestamp": history.created_at.isoformat() if history.created_at else None,
+                    "changed_by": str(history.changed_by) if history.changed_by else None,
+                    "changed_by_name": f"{history.user.first_name} {history.user.last_name}" if history.user else None,
+                    "description": history.description,
+                    "total_amount": float(devis.total_amount) if devis.total_amount else None,
+                    "status": devis.status.value,
+                    "action_details": {
+                        "old_value": history.old_value,
+                        "new_value": history.new_value
+                    }
+                }
+                timeline_events.append(event)
+        
+        # Sort all events by timestamp
+        timeline_events.sort(key=lambda x: x["timestamp"])
+        
+        return timeline_events

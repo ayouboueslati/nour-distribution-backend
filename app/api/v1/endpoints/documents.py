@@ -1,21 +1,25 @@
 # app/api/v1/endpoints/documents.py
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_
 from typing import List, Optional
 from uuid import UUID
+import io
 
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_manager
 from app.models.user import User
-from app.models.document import DocumentType, DocumentStatus
+from app.models.document import DocumentType, DocumentStatus, Document
 from app.schemas.document import (
     DocumentCreate, DocumentUpdate, DevisFromOrder,
     DocumentResponse, DocumentListResponse,
     DocumentHistoryResponse, PaymentCreate, PaymentResponse,
-    AvoirFromFacture
+    AvoirFromFacture, PaginatedDevisResponse
 )
 from app.services.document_service import DocumentService
+from app.services.pdf_service import PDFService
+from fastapi.responses import StreamingResponse
 
 router = APIRouter()
 
@@ -243,10 +247,11 @@ async def create_facture(
     """
     document_service = DocumentService(db)
     
-    if facture_data.type != DocumentType.FACTURE:
+    # Compare values instead of Enum objects since schemas/models define Enums differently
+    if facture_data.type.value != DocumentType.FACTURE.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Document type must be FACTURE"
+            detail=f"Document type must be FACTURE (got {facture_data.type})"
         )
     
     try:
@@ -489,6 +494,186 @@ async def get_avoir(
     
     return avoir
 
+# ==================== DEVIS TRACKING ENDPOINTS ====================
+
+# Alternative endpoint path for frontend compatibility
+@router.get("/devis/by-order/{order_id}", response_model=PaginatedDevisResponse)
+async def get_devis_by_order(
+    order_id: UUID,
+    include_versions: bool = Query(False, description="Include all versions, not just latest"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Get all devis for a specific order (alternative path for frontend)
+    """
+    document_service = DocumentService(db)
+    
+    try:
+        devis_list, total = document_service.get_devis_by_order(
+            order_id=order_id,
+            include_versions=include_versions,
+            skip=skip,
+            limit=limit
+        )
+        
+        page = skip // limit + 1
+        has_next = (skip + limit) < total
+        has_previous = skip > 0
+        
+        return PaginatedDevisResponse(
+            devis_list=devis_list,
+            total=total,
+            page=page,
+            page_size=limit,
+            has_next=has_next,
+            has_previous=has_previous
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving order devis: {str(e)}"
+        )
+
+# Alternative endpoint for factures by order
+@router.get("/factures/by-order/{order_id}", response_model=List[DocumentResponse])
+async def get_factures_by_order(
+    order_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Get all factures for a specific order
+    """
+    from app.models.document import DocumentType
+    
+    document_service = DocumentService(db)
+    
+    try:
+        # Query factures by order_id
+        factures = db.query(Document).filter(
+            and_(
+                Document.order_id == order_id,
+                Document.type == DocumentType.FACTURE,
+                Document.is_latest_version == True
+            )
+        ).options(
+            joinedload(Document.items),
+            joinedload(Document.client)
+        ).all()
+        
+        return factures
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving factures: {str(e)}"
+        )
+
+@router.get("/orders/{order_id}/devis", response_model=PaginatedDevisResponse)
+async def get_order_devis(
+    order_id: UUID,
+    include_versions: bool = Query(False, description="Include all versions, not just latest"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Get all devis for a specific order with pagination - Manager+ only
+    Shows all devis created for this order, optionally including all versions.
+    Includes canceled devis as well.
+    """
+    document_service = DocumentService(db)
+    
+    try:
+        devis_list, total = document_service.get_devis_by_order(
+            order_id=order_id,
+            include_versions=include_versions,
+            skip=skip,
+            limit=limit
+        )
+        
+        page = skip // limit + 1
+        has_next = (skip + limit) < total
+        has_previous = skip > 0
+        
+        return PaginatedDevisResponse(
+            devis_list=devis_list,
+            total=total,
+            page=page,
+            page_size=limit,
+            has_next=has_next,
+            has_previous=has_previous
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving order devis: {str(e)}"
+        )
+
+@router.get("/factures/{facture_id}/source-devis", response_model=DocumentResponse)
+async def get_facture_source_devis(
+    facture_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Get the source devis that was converted to this facture - Manager+ only
+    Returns the devis that this facture was created from.
+    """
+    document_service = DocumentService(db)
+    
+    try:
+        devis = document_service.get_facture_source_devis(facture_id)
+        
+        if not devis:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Source devis not found. This facture may have been created directly."
+            )
+        
+        return devis
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving source devis: {str(e)}"
+        )
+
+@router.get("/orders/{order_id}/devis/timeline")
+async def get_order_devis_timeline(
+    order_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Get timeline of all devis events for an order - Manager+ only
+    Returns a chronological list of all devis-related events including:
+    - Creation
+    - Modifications (new versions)
+    - Acceptance
+    - Conversion to facture
+    - Cancellation
+    """
+    document_service = DocumentService(db)
+    
+    try:
+        timeline = document_service.get_devis_timeline(order_id)
+        
+        return {
+            "order_id": str(order_id),
+            "total_events": len(timeline),
+            "events": timeline
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving devis timeline: {str(e)}"
+        )
+
 # ==================== GENERAL DOCUMENT ENDPOINTS ====================
 
 @router.get("/{document_id}/history", response_model=List[DocumentHistoryResponse])
@@ -545,3 +730,60 @@ async def delete_document(
         )
     
     return {"message": f"{document.type.value.capitalize()} deleted successfully"}
+
+@router.post("/utils/check-overdue")
+async def check_overdue_invoices(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Manually check for overdue invoices and mark them.
+    Trigger this via cron or manually.
+    """
+    document_service = DocumentService(db)
+    try:
+        count = document_service.check_overdue_invoices()
+        return {"message": "Overdue check completed", "updated_count": count}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error checking overdue invoices: {str(e)}"
+        )
+
+@router.get("/{document_id}/pdf")
+@router.get("/devis/{document_id}/pdf")
+@router.get("/factures/{document_id}/pdf")
+@router.get("/avoirs/{document_id}/pdf")
+async def get_document_pdf(
+    document_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """
+    Generate and download PDF for a document (Devis, Facture, Avoir)
+    """
+    document_service = DocumentService(db)
+    document = document_service.get_document_with_details(document_id)
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+        
+    pdf_service = PDFService()
+    try:
+        pdf_bytes = pdf_service.generate_pdf(document)
+        
+        filename = f"{document.type.value}_{document.document_number}.pdf"
+        
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating PDF: {str(e)}"
+        )

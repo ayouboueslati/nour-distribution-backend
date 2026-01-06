@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -12,6 +12,19 @@ class DocumentTypeEnum(str, Enum):
     FACTURE = "facture"
     AVOIR = "avoir"
 
+class PaymentTermsEnum(str, Enum):
+    IMMEDIATE = "immediate"  # Paiement immédiat
+    NET30 = "net30"          # Paiement à 30 jours
+    NET60 = "net60"          # Paiement à 60 jours
+    ON_DELIVERY = "on_delivery" # Paiement à la livraison
+
+class AvoirReasonEnum(str, Enum):
+    RETURN = "return"        # Retour de marchandise
+    DAMAGED = "damaged"      # Marchandise endommagée
+    ERROR = "error"          # Erreur de facturation
+    CANCELLATION = "cancellation" # Annulation de commande
+    OTHER = "other"          # Autre raison
+
 class DocumentStatusEnum(str, Enum):
     BROUILLON = "brouillon"
     EN_ATTENTE = "en_attente"
@@ -19,12 +32,22 @@ class DocumentStatusEnum(str, Enum):
     FACTURE = "facture"
     PAYE = "paye"
     ANNULE = "annule"
+    REFUSE = "refuse"
 
 class PaymentStatusEnum(str, Enum):
     NON_PAYE = "non_paye"
     PARTIEL = "partiel"
     PAYE = "paye"
     EN_RETARD = "en_retard"
+
+class PaymentMethodEnum(str, Enum):
+    CASH = "especes"           # Espèces (cash)
+    CHECK = "cheque"           # Chèque
+    BANK_TRANSFER = "virement" # Virement bancaire
+    CARD = "carte"            # Carte bancaire
+    POSTAL = "postal"         # Mandat postal
+    MOBILE = "mobile"         # Paiement mobile (Flooz, E-dinar, etc.)
+    OTHER = "autre"           # Autre  
 
 # Document Item Schemas
 class DocumentItemCreate(BaseModel):
@@ -35,6 +58,7 @@ class DocumentItemCreate(BaseModel):
     tax_percent: float = Field(default=0.0, ge=0, le=100)
 
 class DocumentItemUpdate(BaseModel):
+    id: UUID
     quantity: Optional[int] = Field(None, gt=0)
     unit_price: Optional[float] = Field(None, ge=0)
     discount_percent: Optional[float] = Field(None, ge=0, le=100)
@@ -132,6 +156,12 @@ class DocumentResponse(BaseModel):
     version: int
     is_latest_version: bool
     
+    # New Fields
+    payment_terms: Optional[PaymentTermsEnum] = None
+    payment_deadline: Optional[datetime] = None
+    valid_until: Optional[datetime] = None
+    avoir_reason: Optional[AvoirReasonEnum] = None
+    
     created_at: datetime
     updated_at: datetime
     
@@ -148,7 +178,7 @@ class DocumentListResponse(BaseModel):
 class PaymentCreate(BaseModel):
     document_id: UUID
     amount: float = Field(gt=0)
-    payment_method: str
+    payment_method: PaymentMethodEnum
     payment_date: datetime
     reference_number: Optional[str] = None
     notes: Optional[str] = None
@@ -159,7 +189,7 @@ class PaymentResponse(BaseModel):
     id: UUID
     document_id: UUID
     amount: float
-    payment_method: str
+    payment_method: PaymentMethodEnum
     payment_date: datetime
     reference_number: Optional[str] = None
     notes: Optional[str] = None
@@ -183,10 +213,60 @@ class DocumentHistoryResponse(BaseModel):
     
     user: Optional[UserResponse] = None
 
+# Document Summary (lightweight)
+class DocumentSummary(BaseModel):
+    """Lightweight document summary for lists"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
+    document_number: str
+    type: DocumentTypeEnum
+    status: DocumentStatusEnum
+    version: int
+    is_latest_version: bool
+    issue_date: datetime
+    total_amount: float
+    created_at: datetime
+    updated_at: datetime
+
+# Devis Timeline Event
+class DevisTimelineEvent(BaseModel):
+    """Timeline event for devis tracking"""
+    event_type: str  # 'created', 'modified', 'accepted', 'converted_to_facture', 'cancelled'
+    devis_id: UUID
+    devis_number: str
+    version: int
+    timestamp: datetime
+    changed_by: Optional[UUID] = None
+    description: str
+    total_amount: Optional[float] = None
+    status: DocumentStatusEnum
+
+# Paginated Devis List Response
+class PaginatedDevisResponse(BaseModel):
+    """Paginated list of devis for an order"""
+    devis_list: List[DocumentResponse]
+    total: int
+    page: int
+    page_size: int
+    has_next: bool
+    has_previous: bool
+
 # Avoir (Credit Note) specific schema
 class AvoirFromFacture(BaseModel):
     """Create an avoir from a facture"""
     facture_id: UUID
-    items: List[DocumentItemCreate]  # Items to credit
-    reason: str
+    items: Optional[List[DocumentItemCreate]] = Field(default_factory=list)
+    reason: Optional[str] = None
+    avoir_reason: Optional[str] = None # For frontend compatibility
+    total_amount: Optional[float] = None # For itemless avoirs
+    issue_date: Optional[datetime] = None
     notes: Optional[str] = None
+
+    @model_validator(mode='after')
+    def consolidate_fields(self) -> 'AvoirFromFacture':
+        if not self.reason and self.avoir_reason:
+            self.reason = self.avoir_reason
+        if not self.reason:
+            self.reason = "return" # Default
+        return self

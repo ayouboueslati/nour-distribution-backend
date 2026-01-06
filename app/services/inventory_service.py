@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc
 
@@ -114,7 +114,7 @@ class InventoryService(BaseService[InventoryMovement]):
 
     def get_inventory_turnover(self, days: int = 30) -> List[Dict[str, Any]]:
         """Get inventory turnover analysis for the last N days"""
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
         
         turnover_data = self.db.query(
             Product.id,
@@ -151,3 +151,52 @@ class InventoryService(BaseService[InventoryMovement]):
             })
 
         return result
+
+    def adjust_stock(
+        self, 
+        product_id: UUID, 
+        real_quantity: int, 
+        reason: str, 
+        user_id: Optional[UUID] = None
+    ) -> Optional[InventoryMovement]:
+        """
+        Manually adjust stock level for a product.
+        Creates an inventory movement to track the change.
+        """
+        product = self.db.query(Product).filter(Product.id == product_id).first()
+        if not product:
+            raise ValueError("Product not found")
+            
+        current_stock = product.stock_quantity
+        diff = real_quantity - current_stock
+        
+        if diff == 0:
+            return None # No change
+            
+        movement_type = MovementType.STOCK_IN if diff > 0 else MovementType.STOCK_OUT
+        
+        # Create movement
+        movement = InventoryMovement(
+            product_id=product.id,
+            movement_type=movement_type,
+            quantity=abs(diff),
+            previous_stock=current_stock,
+            new_stock=real_quantity,
+            reference_type="manual_adjustment",
+            reference_id=None,
+            reason=reason,
+            notes=f"Manual adjustment: {current_stock} -> {real_quantity}",
+            performed_by=user_id
+        )
+        self.db.add(movement)
+        
+        # Update product
+        product.stock_quantity = real_quantity
+        
+        # Check alerts
+        from app.services.stock_alert_service import StockAlertService
+        alert_service = StockAlertService(self.db)
+        alert_service.check_and_create_alerts()
+        
+        self.db.commit()
+        return movement

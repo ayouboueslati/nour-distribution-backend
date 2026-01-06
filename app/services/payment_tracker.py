@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 import pandas as pd
@@ -66,7 +66,7 @@ class PaymentTracker:
             facture.payment_status = PaymentStatus.PARTIEL
         
         # Check if payment is overdue
-        if facture.due_date and facture.due_date < datetime.utcnow() and facture.remaining_amount > 0:
+        if facture.due_date and facture.due_date < datetime.now(timezone.utc) and facture.remaining_amount > 0:
             facture.payment_status = PaymentStatus.EN_RETARD
         
         self.db.commit()
@@ -107,7 +107,7 @@ class PaymentTracker:
             "over_120": []      # Over 120 days
         }
         
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
         
         for facture, client in factures:
             due_date = facture.due_date.date() if facture.due_date else facture.issue_date.date() + timedelta(days=30)
@@ -158,14 +158,14 @@ class PaymentTracker:
                 ) / sum(bucket["total_amount"] for bucket in totals.values()) 
                 if sum(bucket["total_amount"] for bucket in totals.values()) > 0 else 0
             },
-            "generated_at": datetime.utcnow()
+            "generated_at": datetime.now(timezone.utc)
         }
     
     def generate_payment_reminders(self, days_before: int = 7) -> List[Dict]:
         """Generate payment reminders for upcoming due dates"""
         from app.models.document import Document, DocumentType
         
-        reminder_date = datetime.utcnow().date() + timedelta(days=days_before)
+        reminder_date = datetime.now(timezone.utc).date() + timedelta(days=days_before)
         
         upcoming_factures = self.db.query(Document).filter(
             and_(

@@ -6,7 +6,7 @@ from app.schemas.user import UserCreate, UserUpdate, UserCreateByAdmin, UserProf
 from app.core.security import get_password_hash, verify_password
 from app.core.permissions import PermissionService  # This import is safe now
 from app.utils.password_generator import PasswordGenerator
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 class UserService:
@@ -42,7 +42,7 @@ class UserService:
             
             # Lock account after 5 failed attempts for 30 minutes
             if user.failed_login_attempts >= 5:
-                user.locked_until = datetime.utcnow() + timedelta(minutes=30)
+                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
             
             self.db.commit()
             return None
@@ -50,7 +50,7 @@ class UserService:
         # Reset failed attempts on successful login
         user.failed_login_attempts = 0
         user.locked_until = None
-        user.last_login = datetime.utcnow()
+        user.last_login = datetime.now(timezone.utc)
         self.db.commit()
         
         return user
@@ -133,7 +133,7 @@ class UserService:
         for field, value in update_dict.items():
             if field == "password" and value:
                 user.hashed_password = get_password_hash(value)
-                user.password_changed_at = datetime.utcnow()
+                user.password_changed_at = datetime.now(timezone.utc)
             else:
                 setattr(user, field, value)
         
@@ -168,7 +168,7 @@ class UserService:
         
         # Update to new password
         user.hashed_password = get_password_hash(password_data.new_password)
-        user.password_changed_at = datetime.utcnow()
+        user.password_changed_at = datetime.now(timezone.utc)
         
         self.db.commit()
         return True
@@ -225,7 +225,7 @@ class UserService:
         
         # Update password
         user.hashed_password = get_password_hash(new_password)
-        user.password_changed_at = datetime.utcnow()
+        user.password_changed_at = datetime.now(timezone.utc)
         user.failed_login_attempts = 0  # Reset failed attempts
         user.locked_until = None  # Unlock account
         

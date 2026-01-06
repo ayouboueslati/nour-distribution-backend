@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 
@@ -169,7 +169,7 @@ class CartService(BaseService[Cart]):
         if not cart:
             raise ValueError("Cart not found")
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expiration = now + timedelta(days=30)
         
         # Check all items have sufficient stock first
@@ -239,9 +239,12 @@ class CartService(BaseService[Cart]):
         self.db.commit()
         return True
     
-    def check_expired_reservations(self) -> List[UUID]:
-        """Check and release expired cart reservations"""
-        now = datetime.utcnow()
+    def release_expired_reservations(self) -> int:
+        """
+        Check and release expired cart reservations.
+        Returns count of carts released.
+        """
+        now = datetime.now(timezone.utc)
         
         expired_items = self.db.query(CartItem).filter(
             and_(
@@ -250,10 +253,13 @@ class CartService(BaseService[Cart]):
             )
         ).all()
         
-        released_carts = []
+        released_cart_ids = set()
         for item in expired_items:
-            if item.cart_id not in released_carts:
-                self.release_cart_stock(item.cart_id)
-                released_carts.append(item.cart_id)
-        
-        return released_carts
+            released_cart_ids.add(item.cart_id)
+            
+        count = 0
+        for cart_id in released_cart_ids:
+            if self.release_cart_stock(cart_id):
+                count += 1
+                
+        return count

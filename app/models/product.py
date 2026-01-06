@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Text, Integer, Numeric, Boolean, ForeignK
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from .base import BaseModel
+from sqlalchemy.ext.hybrid import hybrid_property
 
 class Product(BaseModel):
     __tablename__ = "products"
@@ -67,13 +68,14 @@ class Product(BaseModel):
     order_items = relationship("OrderItem", back_populates="product")
     images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
     inventory_movements = relationship("InventoryMovement", back_populates="product")
+    stock_alerts = relationship("StockAlert", back_populates="product", cascade="all, delete-orphan")
     
-    @property
+    @hybrid_property
     def available_quantity(self):
         """Available stock after reserving for pending orders"""
         return self.stock_quantity - self.reserved_quantity
     
-    @property
+    @hybrid_property
     def needs_restock(self):
         """Check if product needs restocking"""
         return self.available_quantity <= self.min_stock_level

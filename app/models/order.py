@@ -4,7 +4,7 @@ from .base import BaseModel
 from sqlalchemy.dialects.postgresql import UUID
 import enum
 
-class OrderStatus(enum.Enum):
+class OrderStatus(str, enum.Enum):
     PENDING = "PENDING"  # Waiting - just submitted by client (was: EN_ATTENTE)
     PROCESSING = "PROCESSING"  # Processing - admin is working on it (was: EN_TRAITEMENT)
     CONFIRMED = "CONFIRMED"  # Confirmed by admin (was: CONFIRME)
@@ -12,6 +12,8 @@ class OrderStatus(enum.Enum):
     DRAFT = "DRAFT"  # Draft order
     SHIPPED = "SHIPPED"  # Shipped
     DELIVERED = "DELIVERED"  # Delivered
+    REJECTED = "REJECTED"  # Rejected by admin (stock released)
+    COMPLETED = "COMPLETED"  # Order fully paid and processed
 
 class Order(BaseModel):
     __tablename__ = "orders"

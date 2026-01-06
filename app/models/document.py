@@ -4,24 +4,47 @@ from .base import BaseModel
 from sqlalchemy.dialects.postgresql import UUID
 import enum
 
-class DocumentType(enum.Enum):
+class DocumentType(str, enum.Enum):
     DEVIS = "devis"  # Quote
     FACTURE = "facture"  # Invoice
     AVOIR = "avoir"  # Credit note
 
-class DocumentStatus(enum.Enum):
+class DocumentStatus(str, enum.Enum):
     BROUILLON = "brouillon"  # Draft
     EN_ATTENTE = "en_attente"  # Waiting for approval
     ACCEPTE = "accepte"  # Accepted
     FACTURE = "facture"  # Converted to invoice (for devis)
     PAYE = "paye"  # Paid
     ANNULE = "annule"  # Cancelled
+    REFUSE = "refuse"  # Rejected (for devis)
 
-class PaymentStatus(enum.Enum):
+class PaymentStatus(str, enum.Enum):
     NON_PAYE = "non_paye"  # Unpaid
     PARTIEL = "partiel"  # Partially paid
     PAYE = "paye"  # Fully paid
     EN_RETARD = "en_retard"  # Overdue
+
+class PaymentMethodEnum(str, enum.Enum):
+    CASH = "especes"           # Espèces (cash)
+    CHECK = "cheque"           # Chèque
+    BANK_TRANSFER = "virement" # Virement bancaire
+    CARD = "carte"            # Carte bancaire
+    POSTAL = "postal"         # Mandat postal
+    MOBILE = "mobile"         # Paiement mobile (Flooz, E-dinar, etc.)
+    OTHER = "autre"           # Autre
+
+class PaymentTerms(str, enum.Enum):
+    IMMEDIATE = "immediate"    # Paiement immédiat
+    NET30 = "net30"            # 30 jours net
+    NET60 = "net60"            # 60 jours net
+    ON_DELIVERY = "on_delivery" # Paiement à la livraison
+
+class AvoirReason(str, enum.Enum):
+    RETURN = "return"          # Retour client
+    DAMAGED = "damaged"        # Produit endommagé
+    ERROR = "error"            # Erreur de facturation
+    CANCELLATION = "cancellation" # Annulation commande
+    OTHER = "other"            # Autre  
 
 class Document(BaseModel):
     __tablename__ = "documents"
@@ -58,6 +81,16 @@ class Document(BaseModel):
     # Document details
     notes = Column(Text)
     terms = Column(Text)
+    
+    # Enhanced Devis fields
+    valid_until = Column(DateTime(timezone=True))  # Expiration date for Devis
+    
+    # Enhanced Facture fields
+    payment_terms = Column(Enum(PaymentTerms, values_callable=lambda x: [e.value for e in x]), default=PaymentTerms.IMMEDIATE)
+    payment_deadline = Column(DateTime(timezone=True)) # Specific deadline based on terms
+    
+    # Enhanced Avoir fields
+    avoir_reason = Column(Enum(AvoirReason, values_callable=lambda x: [e.value for e in x]), nullable=True)
     
     # PDF storage
     pdf_path = Column(String(500))
@@ -133,7 +166,7 @@ class Payment(BaseModel):
     
     # Payment details
     amount = Column(Float, nullable=False)
-    payment_method = Column(String(100))  # cash, bank_transfer, check, etc.
+    payment_method = Column(Enum(PaymentMethodEnum, values_callable=lambda x: [e.value for e in x]), nullable=False)
     payment_date = Column(DateTime(timezone=True))
     reference_number = Column(String(100))  # Transaction/check number
     
@@ -149,12 +182,3 @@ class Payment(BaseModel):
     
     def __repr__(self):
         return f"<Payment {self.amount} for {self.document_id}>"
-
-class PaymentMethodEnum(str, Enum):
-    CASH = "especes"           # Espèces (cash)
-    CHECK = "cheque"           # Chèque
-    BANK_TRANSFER = "virement" # Virement bancaire
-    CARD = "carte"            # Carte bancaire
-    POSTAL = "postal"         # Mandat postal
-    MOBILE = "mobile"         # Paiement mobile (Flooz, E-dinar, etc.)
-    OTHER = "autre"           # Autre  
