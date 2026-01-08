@@ -3,7 +3,6 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import create_access_token, create_refresh_token
-from app.core.rate_limiting import login_limits, limiter
 from app.schemas.user import Token, LoginRequest
 from app.services.user_service import UserService
 from app.models.user import User
@@ -11,7 +10,6 @@ from app.api.v1.deps import get_current_user
 router = APIRouter()
 
 @router.post("/login", response_model=Token)
-@limiter.limit(login_limits)
 async def login(
     request: Request,
     login_data: LoginRequest,

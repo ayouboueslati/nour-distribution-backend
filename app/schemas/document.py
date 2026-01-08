@@ -58,7 +58,8 @@ class DocumentItemCreate(BaseModel):
     tax_percent: float = Field(default=0.0, ge=0, le=100)
 
 class DocumentItemUpdate(BaseModel):
-    id: UUID
+    id: Optional[UUID] = None
+    product_id: Optional[UUID] = None
     quantity: Optional[int] = Field(None, gt=0)
     unit_price: Optional[float] = Field(None, ge=0)
     discount_percent: Optional[float] = Field(None, ge=0, le=100)
@@ -109,7 +110,14 @@ class DevisFromOrder(BaseModel):
 
 class DocumentUpdate(BaseModel):
     status: Optional[DocumentStatusEnum] = None
-    items: Optional[List[DocumentItemUpdate]] = None
+    items: Optional[List[DocumentItemUpdate]] = Field(default_factory=list)
+    
+    issue_date: Optional[datetime] = None
+    due_date: Optional[datetime] = None
+    payment_terms: Optional[PaymentTermsEnum] = None
+    payment_deadline: Optional[datetime] = None
+    valid_until: Optional[datetime] = None
+    avoir_reason: Optional[AvoirReasonEnum] = None
     
     subtotal: Optional[float] = Field(None, ge=0)
     tax_amount: Optional[float] = Field(None, ge=0)

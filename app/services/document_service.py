@@ -278,14 +278,20 @@ class DocumentService(BaseService[Document]):
             # Mark current version as not latest
             document.is_latest_version = False
             
+            # Rename OLD version number to avoid uniqueness conflict
+            # Keep original number for the NEW version
+            old_number = document.document_number
+            document.document_number = f"{old_number}-v{document.version}"
+            self.db.flush()
+            
             # Create new version (duplicate with changes)
             new_document = Document(
                 type=document.type,
-                document_number=document.document_number,
+                document_number=old_number,
                 status=document.status,
                 client_id=document.client_id,
                 order_id=document.order_id,
-                issue_date=document.issue_date,
+                issue_date=update_data.issue_date if update_data.issue_date else document.issue_date,
                 due_date=update_data.due_date if update_data.due_date else document.due_date,
                 subtotal=update_data.subtotal if update_data.subtotal is not None else document.subtotal,
                 tax_amount=update_data.tax_amount if update_data.tax_amount is not None else document.tax_amount,
@@ -297,6 +303,10 @@ class DocumentService(BaseService[Document]):
                 remaining_amount=document.remaining_amount,
                 notes=update_data.notes if update_data.notes else document.notes,
                 terms=update_data.terms if update_data.terms else document.terms,
+                payment_terms=update_data.payment_terms if update_data.payment_terms else document.payment_terms,
+                payment_deadline=update_data.payment_deadline if update_data.payment_deadline else document.payment_deadline,
+                valid_until=update_data.valid_until if update_data.valid_until else document.valid_until,
+                avoir_reason=update_data.avoir_reason if update_data.avoir_reason else document.avoir_reason,
                 reference_document_id=document.id,
                 version=document.version + 1,
                 is_latest_version=True
@@ -308,29 +318,53 @@ class DocumentService(BaseService[Document]):
             if update_data.items:
                 # Create new items from update data
                 for item_update in update_data.items:
-                    # Find corresponding old item
-                    old_item = next((item for item in document.items if str(item.id) == str(item_update.id)), None)
-                    if old_item:
-                        qty = int(item_update.quantity if item_update.quantity is not None else old_item.quantity)
-                        price = float(item_update.unit_price if item_update.unit_price is not None else old_item.unit_price)
-                        disc = float(item_update.discount_percent if item_update.discount_percent is not None else old_item.discount_percent)
-                        tax = float(item_update.tax_percent if item_update.tax_percent is not None else old_item.tax_percent)
-                        
-                        # Recalculate subtotal
-                        item_subtotal = (float(qty) * price * (1 - disc / 100))
-                        
-                        new_item = DocumentItem(
-                            document_id=new_document.id,
-                            product_id=old_item.product_id,
-                            product_name=old_item.product_name,
-                            product_sku=old_item.product_sku,
-                            quantity=qty,
-                            unit_price=price,
-                            discount_percent=disc,
-                            tax_percent=tax,
-                            subtotal=item_subtotal
-                        )
-                        self.db.add(new_item)
+                    if item_update.id:
+                        # Find corresponding old item
+                        old_item = next((item for item in document.items if str(item.id) == str(item_update.id)), None)
+                        if old_item:
+                            qty = int(item_update.quantity if item_update.quantity is not None else old_item.quantity)
+                            price = float(item_update.unit_price if item_update.unit_price is not None else old_item.unit_price)
+                            disc = float(item_update.discount_percent if item_update.discount_percent is not None else old_item.discount_percent)
+                            tax = float(item_update.tax_percent if item_update.tax_percent is not None else old_item.tax_percent)
+                            
+                            # Recalculate subtotal
+                            item_subtotal = (float(qty) * price * (1 - disc / 100))
+                            
+                            new_item = DocumentItem(
+                                document_id=new_document.id,
+                                product_id=old_item.product_id,
+                                product_name=old_item.product_name,
+                                product_sku=old_item.product_sku,
+                                quantity=qty,
+                                unit_price=price,
+                                discount_percent=disc,
+                                tax_percent=tax,
+                                subtotal=item_subtotal
+                            )
+                            self.db.add(new_item)
+                    elif item_update.product_id:
+                        # NEW item added during update
+                        product = self.db.query(Product).filter(Product.id == item_update.product_id).first()
+                        if product:
+                            qty = int(item_update.quantity if item_update.quantity is not None else 1)
+                            price = float(item_update.unit_price if item_update.unit_price is not None else product.wholesale_price)
+                            disc = float(item_update.discount_percent if item_update.discount_percent is not None else 0.0)
+                            tax = float(item_update.tax_percent if item_update.tax_percent is not None else 19.0)
+                            
+                            item_subtotal = (float(qty) * price * (1 - disc / 100))
+                            
+                            new_item = DocumentItem(
+                                document_id=new_document.id,
+                                product_id=product.id,
+                                product_name=product.name,
+                                product_sku=product.sku,
+                                quantity=qty,
+                                unit_price=price,
+                                discount_percent=disc,
+                                tax_percent=tax,
+                                subtotal=item_subtotal
+                            )
+                            self.db.add(new_item)
             else:
                 # Copy all items
                 for old_item in document.items:
@@ -372,6 +406,14 @@ class DocumentService(BaseService[Document]):
                 document.notes = update_data.notes
             if update_data.terms:
                 document.terms = update_data.terms
+            if update_data.payment_terms:
+                document.payment_terms = update_data.payment_terms
+            if update_data.payment_deadline:
+                document.payment_deadline = update_data.payment_deadline
+            if update_data.valid_until:
+                document.valid_until = update_data.valid_until
+            if update_data.avoir_reason:
+                document.avoir_reason = update_data.avoir_reason
             
             # Create history
             history = DocumentHistory(

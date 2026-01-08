@@ -21,10 +21,6 @@ passlib[bcrypt]
 bcrypt
 python-multipart
 
-# Rate Limiting
-slowapi
-redis
-
 # Logging
 structlog
 
@@ -33,8 +29,15 @@ aiosmtplib
 jinja2
 
 # PDF
-weasyprint
+reportlab
+num2words
+qrcode
+pillow
 
 # Utilities
 anyio
 click
+pandas
+plotly
+openpyxl
+numpy

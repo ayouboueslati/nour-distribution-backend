@@ -1,6 +1,6 @@
 # app/api/v1/endpoints/documents.py
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 from typing import List, Optional

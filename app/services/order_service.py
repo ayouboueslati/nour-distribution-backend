@@ -339,7 +339,7 @@ Informations Client:
 - Adresse: {order.client.address or 'Non renseignée'}
 - Type: {'Professionnel (B2B)' if order.client.type == 'b2b' else 'Particulier (B2C)'}
 
-Adresse de livraison: {order.shipping_address or 'Identique à l\'adresse client'}
+Adresse de livraison: {order.shipping_address or "Identique à l'adresse client"}
 """
     
         if order.delivery_notes:

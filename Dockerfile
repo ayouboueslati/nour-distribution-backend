@@ -5,11 +5,12 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
-COPY requirements/prod.txt .
-RUN pip install --no-cache-dir -r prod.txt
+COPY requirements/ requirements/
+RUN pip install --no-cache-dir -r requirements/prod.txt
 
 # Copy application
 COPY . .

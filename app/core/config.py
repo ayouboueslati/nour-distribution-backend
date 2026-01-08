@@ -28,8 +28,6 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000","http://192.168.167.1:3000"]
     
-    # Rate Limiting
-    RATE_LIMIT_PER_MINUTE: int = 60
     
     # First Admin (for seeding)
     FIRST_SUPER_ADMIN_EMAIL: str
@@ -41,17 +39,26 @@ class Settings(BaseSettings):
 
     # Tunisian Specific
     TVA_RATE: float = 0.19  # Tunisian VAT is 19%
-    TIMBRE_FISCAL_RATE: float = 0.005  # 0.5% stamp duty
+    TIMBRE_FISCAL_RATE: float = 1.000  # Stamp duty updated to 1.000 DT as per request
     PATENTE_REQUIRED: bool = True
     
     # Tunisian Bank Info
-    BANK_NAME: str = "Banque de Tunisie"  # Update with actual bank
-    BANK_IBAN: str = "TN59 1234 5678 9012 3456 7890"
-    BANK_SWIFT: str = "BKTUTNTT"
+    BANK_NAME: str = "ATTIJARI BANK – MEGRINE"
+    BANK_IBAN: str = "04072157007133053401"
+    BANK_SWIFT: str = "" # Not provided
     
     # Tunisian Company Info
-    COMPANY_MATRICULE_FISCAL: str = ""
-    COMPANY_REGISTRE_COMMERCE: str = ""
+    COMPANY_NAME: str = "NOUR DISTRIBUTION"
+    COMPANY_ACTIVITY: str = "ACCESSOIRES DE COIFFURE"
+    COMPANY_ADDRESS: str = "87 Avenue de la République, 2033 Megrine – BEN AROUS"
+    COMPANY_PHONE: str = "71 432 831"
+    COMPANY_GSM: str = "98 224 294"
+    COMPANY_EMAIL: str = "kamounassad@gmail.com"
+    COMPANY_MATRICULE_FISCAL: str = "155546 / F"
+    COMPANY_REGISTRE_COMMERCE: str = "B0244792018"
+    COMPANY_RIB: str = "04072157007133053401"
+    COMPANY_BANK: str = "ATTIJARI BANK – MEGRINE"
+    COMPANY_CUSTOMS_CODE: str = "XXXXXXXXX"
     COMPANY_IDENTIFIANT_UNIQUE: str = ""
     
     # Tunisian Payment Methods
