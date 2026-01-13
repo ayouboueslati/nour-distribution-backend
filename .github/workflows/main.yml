@@ -28,7 +28,7 @@ jobs:
         name: bandit-findings
         path: bandit-report.json
         
-   dependency_scan:
+  dependency_scan:
     name: Run Safety Scan
     runs-on: ubuntu-latest
 
