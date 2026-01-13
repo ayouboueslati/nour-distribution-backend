@@ -44,8 +44,8 @@ jobs:
       - name: Install Safety
         run: pip install safety
 
-      - name: Run Safety Check
-        run: safety check -r requirements/base.txt --continue-on-error
+      - name: Run Safety Scan
+        run: safety scan -r requirements/base.txt --continue-on-error
 
     
   image_scan:
