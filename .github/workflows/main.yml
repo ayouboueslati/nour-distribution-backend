@@ -80,15 +80,25 @@ jobs:
       uses: docker/setup-buildx-action@v3
        
     - name: Build Docker Image
-      run: docker build -t nour-backend:${{ github.sha }} .
-
-    - name: Docker Docker Scout 
       run: |
-          curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
-          sh install-scout.sh
+        docker build -t nour-backend:${{ github.sha }} .
+        docker tag nour-backend:${{ github.sha }} nour-backend:latest
 
-          echo "${{ secrets.REPO_PWD }}" | docker login -u "${{ secrets.REPO_USER }}" --password-stdin
+    - name: Install Docker Scout CLI
+      run: |
+        curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
+        chmod +x install-scout.sh
+        ./install-scout.sh
+        
+    - name: Docker Scout Quick View
+      run: docker scout quickview nour-backend:${{ github.sha }}
 
-          docker scout quickview nour-backend:${{ github.sha }}
+    - name: Docker Scout CVEs Scan
+      run: |
+        if [ -n "${{ secrets.DOCKER_PASSWORD }}" ]; then
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
           docker scout cves nour-backend:${{ github.sha }}
-   
+        else
+          echo "DOCKER_PASSWORD secret not set. Running unauthenticated scan."
+          docker scout cves --platform linux/amd64 nour-backend:${{ github.sha }}
+        fi
