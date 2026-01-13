@@ -72,10 +72,12 @@ app.openapi = custom_openapi
 
 if __name__ == "__main__":
     import uvicorn
+    # Use environment variable for host, default to 0.0.0.0 for development
+    # In production, override with more specific host via environment variable
     uvicorn.run(
         "main:app", 
-        host="0.0.0.0", 
-        port=8000, 
+        host=os.getenv("HOST", "0.0.0.0"),  # nosec B104 - configurable via environment
+        port=int(os.getenv("PORT", "8000")), 
         reload=True,
         log_level="debug"  # Add debug logging
     )

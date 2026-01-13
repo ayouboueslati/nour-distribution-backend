@@ -59,8 +59,9 @@ class TunisianPDFGenerator:
             if os.path.exists(arabic_font_path):
                 pdfmetrics.registerFont(TTFont('Arabic', arabic_font_path))
                 addMapping('Arabic', 0, 0, 'Arabic')
-        except:
-            pass  # Fallback to default font
+        except Exception as e:
+            # Fallback to default font if Arabic font registration fails
+            print(f"[PDF] Could not register Arabic font: {e}")
     
     def _setup_custom_styles(self):
         """Setup Tunisian-style document formatting"""

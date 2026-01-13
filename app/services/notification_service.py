@@ -23,7 +23,8 @@ class NotificationService:
         # Using absolute path relative to the app directory for better reliability
         current_dir = os.path.dirname(os.path.abspath(__file__))
         template_dir = os.path.join(current_dir, '..', 'templates')
-        self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
+        # Enable autoescape to prevent XSS vulnerabilities
+        self.jinja_env = Environment(loader=FileSystemLoader(template_dir), autoescape=True)
     
     def _get_base_context(self):
         """Get base context for all email templates"""

@@ -7,7 +7,7 @@ def test_backend_connection():
     # Test 1: Health endpoint
     print("1. Testing health endpoint...")
     try:
-        health_response = requests.get("http://localhost:8000/health")
+        health_response = requests.get("http://localhost:8000/health", timeout=10)
         print(f"   ✅ Health endpoint: {health_response.status_code}")
         print(f"   📝 Response: {health_response.text}")
     except Exception as e:
@@ -17,7 +17,7 @@ def test_backend_connection():
     # Test 2: Check if auth endpoint exists
     print("2. Testing auth endpoint existence...")
     try:
-        auth_response = requests.get("http://localhost:8000/api/v1/auth/login")
+        auth_response = requests.get("http://localhost:8000/api/v1/auth/login", timeout=10)
         print(f"   📝 Auth endpoint GET: {auth_response.status_code}")
     except Exception as e:
         print(f"   ❌ Auth endpoint check failed: {e}")
@@ -32,7 +32,8 @@ def test_backend_connection():
         }
         login_response = requests.post(
             "http://localhost:8000/api/v1/auth/login",
-            data=login_data
+            data=login_data,
+            timeout=10
         )
         print(f"   📝 Login POST response: {login_response.status_code}")
         if login_response.status_code == 200:
@@ -53,7 +54,8 @@ def test_backend_connection():
         login_response = requests.post(
             "http://localhost:8000/api/v1/auth/login",
             data=form_data,
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10
         )
         print(f"   📝 Form login response: {login_response.status_code}")
         if login_response.status_code == 200:

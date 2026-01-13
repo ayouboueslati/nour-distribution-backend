@@ -11,7 +11,7 @@ def test_login():
     }
     
     try:
-        response = requests.post(url, json=data)
+        response = requests.post(url, json=data, timeout=10)
         print(f"📡 Status Code: {response.status_code}")
         print(f"📡 Response Headers: {dict(response.headers)}")
         

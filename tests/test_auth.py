@@ -18,8 +18,8 @@ def test_admin_user():
             print(f"🎯 Role: {admin.role}")
             print(f"🔓 Active: {admin.is_active}")
             
-            # Test password
-            test_password = "ChangeThisPassword123!"
+            # Test password - use environment variable or default for testing
+            test_password = os.getenv("TEST_ADMIN_PASSWORD", "ChangeThisPassword123!")  # nosec B105
             is_correct = verify_password(test_password, admin.hashed_password)
             print(f"🔑 Password verification: {is_correct}")
             
