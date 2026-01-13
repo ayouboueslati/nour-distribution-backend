@@ -28,6 +28,26 @@ jobs:
         name: bandit-findings
         path: bandit-report.json
         
+   dependency_scan:
+    name: Run Safety Scan
+    runs-on: ubuntu-latest
+
+    - steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.10'
+
+      - name: Install Safety
+        run;: pip install safety
+
+      - name: Run Safety Check
+        run: Safety check -r requirements/base.txt --continue-on-error
+
+    
   image_scan:
     name: Build Image and Run image Scan
     runs-on: ubuntu-latest
