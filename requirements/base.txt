@@ -1,43 +1,43 @@
 # Core Framework
-fastapi
-uvicorn[standard]
+fastapi==0.121.2
+uvicorn[standard]==0.38.0
 
 # Database
-sqlalchemy
-psycopg2-binary
-asyncpg
-alembic
+sqlalchemy==2.0.44
+psycopg2-binary==2.9.11
+asyncpg==0.30.0
+alembic==1.12.1
 
 # Validation & Settings
-pydantic
-pydantic[email]
-pydantic-settings
-python-dotenv
-email-validator
+pydantic==2.12.4
+pydantic[email]==2.12.4
+pydantic-settings==2.12.0
+python-dotenv==1.2.1
+email-validator==2.3.0
 
 # Security
-python-jose[cryptography]
-passlib[bcrypt]
-bcrypt
-python-multipart
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.0
+python-multipart==0.0.20
 
 # Logging
-structlog
+structlog==25.5.0
 
 # Email
-aiosmtplib
-jinja2
+aiosmtplib==5.0.0
+jinja2==3.1.6
 
 # PDF
-reportlab
-num2words
-qrcode
-pillow
+reportlab==4.4.5
+num2words==0.5.14
+qrcode==8.2
+pillow==12.0.0
 
 # Utilities
-anyio
-click
-pandas
-plotly
-openpyxl
-numpy
+anyio==4.11.0
+click==8.3.0
+pandas==2.3.3
+plotly==6.5.0
+openpyxl==3.1.5  # Pinning to recent stable version as it was missing from freeze
+numpy==2.3.5
