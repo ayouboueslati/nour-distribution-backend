@@ -102,3 +102,4 @@ jobs:
           echo "DOCKER_PASSWORD secret not set. Running unauthenticated scan."
           docker scout cves --platform linux/amd64 nour-backend:${{ github.sha }}
         fi
+      #test
