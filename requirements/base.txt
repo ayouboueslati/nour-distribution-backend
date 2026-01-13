@@ -40,4 +40,4 @@ click==8.3.0
 pandas==2.3.3
 plotly==6.5.0
 openpyxl==3.1.5  # Pinning to recent stable version as it was missing from freeze
-numpy==2.3.5
+numpy==1.26.4
