@@ -88,16 +88,17 @@ jobs:
         chmod +x install-scout.sh
         ./install-scout.sh
 
-    - name: Authenticate and Run Docker Scout
-      run: |
-        echo "${{ secrets.REPO_PWD }}" | docker login -u "${{ secrets.REPO_USER }}" --password-stdin
-        
-        # 1. Generate overview report (text format)
-        docker scout quickview nour-backend:${{ github.sha }} -o scout-quickview.txt
-        
-        # 2. Generate detailed vulnerability report (JSON format)
-        docker scout cves nour-backend:${{ github.sha }} --format sarif -o scout-cves.sarif.json
+    - name: Authenticate to Docker Hub
+      run: echo "${{ secrets.REPO_PWD }}" | docker login -u "${{ secrets.REPO_USER }}" --password-stdin
 
+    - name: Generate Docker Scout Reports
+      run: |
+        # Clear any corrupt cache left by the failed action
+        rm -rf /tmp/docker-scout* 2>/dev/null || true
+        # 1. Create a readable text overview
+        docker scout quickview nour-backend:${{ github.sha }} > scout-quickview.txt
+        # 2. Create a detailed JSON report for GitHub Security tab
+        docker scout cves nour-backend:${{ github.sha }} --format sarif -o scout-cves.sarif.json
         
     - name: Upload Docker Scout Reports
       uses: actions/upload-artifact@v4
