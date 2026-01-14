@@ -68,7 +68,7 @@ jobs:
       run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
     
-    image_scan:
+  image_scan:
     name: Build and Scan Docker Image
     runs-on: ubuntu-latest
 
