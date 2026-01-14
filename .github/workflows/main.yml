@@ -68,7 +68,7 @@ jobs:
       run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
     
-  image_scan:
+    image_scan:
     name: Build and Scan Docker Image
     runs-on: ubuntu-latest
 
@@ -89,9 +89,20 @@ jobs:
         ./install-scout.sh
 
     - name: Authenticate and Run Docker Scout
-      run: 
-        echo ${{ secrets.REPO_PWD }} | docker login -u ${{ secrets.REPO_USER }} --password-stdin
+      run: |
+        echo "${{ secrets.REPO_PWD }}" | docker login -u "${{ secrets.REPO_USER }}" --password-stdin
+        
+        # 1. Generate overview report (text format)
+        docker scout quickview nour-backend:${{ github.sha }} -o scout-quickview.txt
+        
+        # 2. Generate detailed vulnerability report (JSON format)
+        docker scout cves nour-backend:${{ github.sha }} --format sarif -o scout-cves.sarif.json
 
-        docker scout quickview
-        docker scout cves
-
+    - name: Upload Docker Scout Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: docker-scout-reports
+        path: |
+          scout-quickview.txt
+          scout-cves.sarif.json
