@@ -89,10 +89,9 @@ jobs:
         ./install-scout.sh
 
     - name: Authenticate and Run Docker Scout
-      run: |
-        # 1. Log in FIRST (this stores credentials in the default location)
-        echo "${{ secrets.REPO_PWD }}" | docker login -u "${{ secrets.REPO_USER }}" --password-stdin
-        # 2. Run all Scout commands AFTER successful login
-        docker scout quickview nour-backend:${{ github.sha }}
-        docker scout cves nour-backend:${{ github.sha }}
+      run: 
+        echo ${{ secrets.REPO_PWD }} | docker login -u ${{ secrets.REPO_USER }} --password-stdin
+
+        docker scout quickview
+        docker scout cves
 
