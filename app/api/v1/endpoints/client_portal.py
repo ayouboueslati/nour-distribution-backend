@@ -10,6 +10,7 @@ from app.models.document import Document, DocumentType, DocumentStatus
 from app.services.order_service import OrderService
 from app.services.document_service import DocumentService
 from app.services.pdf_generator import TunisianPDFGenerator
+from app.core.security_utils import validate_safe_path
 
 router = APIRouter()
 
@@ -372,8 +373,13 @@ async def download_document_pdf(
     
     # Return PDF file
     from fastapi.responses import FileResponse
+    
+    # SECURITY: Validate path to prevent directory traversal
+    # Documents are stored in "documents/" relative to CWD
+    safe_path = validate_safe_path(os.getcwd(), document.pdf_path)
+    
     return FileResponse(
-        document.pdf_path,
+        safe_path,
         media_type='application/pdf',
         filename=f"{document.document_number}.pdf"
     )
