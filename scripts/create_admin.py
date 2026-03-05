@@ -24,7 +24,7 @@ def create_super_admin():
         print(f"Creating super admin: {settings.FIRST_SUPER_ADMIN_NAME} ({settings.FIRST_SUPER_ADMIN_EMAIL})...")
         
         # We manually create the super admin to bypass any staff-level restrictions in the service
-        from app.core.security_utils import get_password_hash
+        from app.core.security import get_password_hash
         import uuid
         
         new_admin = User(
