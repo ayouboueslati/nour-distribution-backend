@@ -27,11 +27,12 @@ class Settings(BaseSettings):
     
     # CORS
     CORS_ORIGINS: List[str] = [
-        "http://localhost:3000", 
+        "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://192.168.167.1:3000",
-        "https://nour-distribution.vercel.app", # Add your intended Vercel domain here later or allow all in dev
-        "*" # Temporarily allowing all origins to make sure the connection works. Remove this and add exact Vercel URL later!
+        "https://nour-distribution.vercel.app",
+        "https://nour-distribution-git-main-ayoub-oueslatis-projects.vercel.app",
+        "https://nour-distribution-5y3gg2ah8-ayoub-oueslatis-projects.vercel.app",
     ]
     
     
