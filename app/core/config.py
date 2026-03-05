@@ -26,7 +26,13 @@ class Settings(BaseSettings):
     EMAIL_ENABLED: bool = True
     
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000","http://192.168.167.1:3000"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000",
+        "http://192.168.167.1:3000",
+        "https://nour-distribution.vercel.app", # Add your intended Vercel domain here later or allow all in dev
+        "*" # Temporarily allowing all origins to make sure the connection works. Remove this and add exact Vercel URL later!
+    ]
     
     
     # First Admin (for seeding)
