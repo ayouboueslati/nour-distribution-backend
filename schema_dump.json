@@ -1,0 +1,1602 @@
+{
+  "tables": [
+    "users",
+    "carts",
+    "cart_items",
+    "order_history",
+    "document_history",
+    "alembic_version",
+    "clients",
+    "document_items",
+    "documents",
+    "order_items",
+    "orders",
+    "charges",
+    "admin_notifications",
+    "payments",
+    "stock_alerts",
+    "delivery_notes",
+    "delivery_note_items",
+    "categories",
+    "inventory_movements",
+    "product_images",
+    "products",
+    "suppliers"
+  ],
+  "columns": {
+    "users": [
+      {
+        "name": "password_changed_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "failed_login_attempts",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "locked_until",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "role",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_active",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "last_login",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "created_by",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "hashed_password",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "full_name",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "email",
+        "default": null,
+        "nullable": "NO"
+      }
+    ],
+    "carts": [
+      {
+        "name": "is_active",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "guest_session_id",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "cart_items": [
+      {
+        "name": "cart_id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "product_id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "quantity",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "reserved_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "reservation_expires_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      }
+    ],
+    "order_history": [
+      {
+        "name": "order_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "changed_by",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "notes",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "action",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "old_value",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "new_value",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "document_history": [
+      {
+        "name": "document_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "changed_by",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "new_value",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "action",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "description",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "old_value",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "alembic_version": [
+      {
+        "name": "version_num",
+        "default": null,
+        "nullable": "NO"
+      }
+    ],
+    "clients": [
+      {
+        "name": "is_active",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "credit_limit",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "current_balance",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_suspended",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "type",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "first_name",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "last_name",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "preferred_contact_method",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "notes",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "suspension_reason",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "contact_name",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "email",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "phone",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "address",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "company_name",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "fiscal_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "payment_method",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "document_items": [
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "product_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "document_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "quantity",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "unit_price",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "discount_percent",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "tax_percent",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "subtotal",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "product_name",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "product_sku",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "description",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "documents": [
+      {
+        "name": "avoir_reason",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "valid_until",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "payment_terms",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "payment_deadline",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "type",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "status",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "client_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "order_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "issue_date",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "due_date",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "subtotal",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "tax_amount",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "total_amount",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_sent",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "sent_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "reference_document_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "payment_status",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "accepted_date",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "discount",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "shipping_fee",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "paid_amount",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "remaining_amount",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "version",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_latest_version",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "document_number",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "terms",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "pdf_path",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "notes",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "order_items": [
+      {
+        "name": "order_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "product_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "quantity",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "unit_price",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "discount_percent",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "subtotal",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "orders": [
+      {
+        "name": "processed_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "discount",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "stock_reserved",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "reservation_expires_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "confirmed_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "subtotal",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "shipping_fee",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "tax_amount",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "total_amount",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "status",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "client_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "submitted_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "shipping_address",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "order_number",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "delivery_notes",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "internal_notes",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "charges": [
+      {
+        "name": "type",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "recurrence",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "validated",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "date",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "amount",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "category",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "supplier",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "receipt_number",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "notes",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "description",
+        "default": null,
+        "nullable": "NO"
+      }
+    ],
+    "admin_notifications": [
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "notification_type",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_by",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "priority",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "target_roles",
+        "default": "'[]'::jsonb",
+        "nullable": "NO"
+      },
+      {
+        "name": "related_entity_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_read",
+        "default": "false",
+        "nullable": "YES"
+      },
+      {
+        "name": "read_by",
+        "default": "'[]'::jsonb",
+        "nullable": "YES"
+      },
+      {
+        "name": "read_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "title",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "message",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "related_entity_type",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "payments": [
+      {
+        "name": "document_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "amount",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "payment_method",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "payment_date",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "recorded_by",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "reference_number",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "notes",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "stock_alerts": [
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "product_id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "alert_type",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "priority",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "threshold_value",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "current_value",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "is_active",
+        "default": "true",
+        "nullable": "YES"
+      },
+      {
+        "name": "acknowledged_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "acknowledged_by",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "resolved_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "message",
+        "default": null,
+        "nullable": "NO"
+      }
+    ],
+    "delivery_notes": [
+      {
+        "name": "client_id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "facture_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "shipped_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "delivered_at",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "status",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "order_id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "carrier_name",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "delivery_number",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "tracking_reference",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "shipping_address",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "notes",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "delivery_note_items": [
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "product_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "delivery_note_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "quantity",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "product_name",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "product_sku",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "categories": [
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "is_active",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_featured",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "parent_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "sort_order",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "description",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "slug",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "name",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "image_url",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "inventory_movements": [
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "movement_type",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "quantity",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "previous_stock",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "new_stock",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "product_id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "reference_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "performed_by",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "reference_type",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "notes",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "reason",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "product_images": [
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "product_id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "sort_order",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_primary",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "image_url",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "alt_text",
+        "default": null,
+        "nullable": "YES"
+      }
+    ],
+    "products": [
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "weight_grams",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "bundle_pieces",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "stock_quantity",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "reserved_quantity",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "max_stock_level",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "wholesale_price",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "retail_price",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "min_stock_level",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_featured",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_best_seller",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_new_arrival",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "category_id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "additional_images",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_active",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "supplier_id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "cost_price",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "search_keywords",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "description",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "sku",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "short_description",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "barcode",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "hair_type",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "hair_texture",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "hair_length",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "hair_color",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "hair_origin",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "hair_quality",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "package_dimensions",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "supplier_sku",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "main_image",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "meta_title",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "meta_description",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "name",
+        "default": null,
+        "nullable": "NO"
+      }
+    ],
+    "suppliers": [
+      {
+        "name": "updated_at",
+        "default": "now()",
+        "nullable": "NO"
+      },
+      {
+        "name": "is_active",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "id",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "created_at",
+        "default": "now()",
+        "nullable": "YES"
+      },
+      {
+        "name": "lead_time_days",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "reliability_rating",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "quality_rating",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "communication_rating",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "is_preferred",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "tags",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "contact_person",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "address_line1",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "address_line2",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "state",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "postal_code",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "business_registration",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "vat_number",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "preferred_payment_method",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "shipping_terms",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "whatsapp",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "email",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "phone",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "city",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "country",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "fiscal_id",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "payment_terms",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "notes",
+        "default": null,
+        "nullable": "YES"
+      },
+      {
+        "name": "company_name",
+        "default": null,
+        "nullable": "NO"
+      },
+      {
+        "name": "legal_name",
+        "default": null,
+        "nullable": "YES"
+      }
+    ]
+  }
+}
