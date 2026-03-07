@@ -26,11 +26,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["https://nour-distribution.vercel.app"],  # or ["*"] for testing only
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]  
 )
 
 # Include API routes
