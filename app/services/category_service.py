@@ -19,10 +19,9 @@ class CategoryService(BaseService[Category]):
         ).first()
 
         if existing_category:
-            # ✅ FIX: RAISE the error instead of returning it
-            raise ValueError(f"category with slug '{category_data.slug}' already exists")
+            raise ValueError(f"La catégorie avec le slug '{category_data.slug}' existe déjà (Nom: {existing_category.name}). Veuillez utiliser un slug unique.")
         
-        return self.create(category_data.model_dump())  # ✅ Also changed .dict() to .model_dump()
+        return self.create(category_data.model_dump())
     
     def update_category(self, category_id: UUID, category_data: CategoryUpdate) -> Optional[Category]:
         """Update category with validation"""
@@ -30,7 +29,7 @@ class CategoryService(BaseService[Category]):
         if not category:
             return None
 
-        update_data = category_data.model_dump(exclude_unset=True)  # ✅ Changed .dict() to .model_dump()
+        update_data = category_data.model_dump(exclude_unset=True)
         
         # Check slug uniqueness if being updated
         if 'slug' in update_data and update_data['slug'] != category.slug:
@@ -41,7 +40,7 @@ class CategoryService(BaseService[Category]):
                 )
             ).first()
             if existing_category:
-                raise ValueError(f"Category with slug '{update_data['slug']}' already exists")
+                raise ValueError(f"La catégorie avec le slug '{update_data['slug']}' existe déjà (Nom: {existing_category.name}). Veuillez utiliser un slug unique.")
 
         return self.update(category, update_data)
 
