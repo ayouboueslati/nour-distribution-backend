@@ -38,6 +38,8 @@ class DeliveryNoteResponse(DeliveryNoteBase):
     delivered_at: Optional[datetime]
     items: List[DeliveryItemResponse]
     created_at: datetime
-    
+    # Computed from client relationship — used by the frontend deliveries table
+    client_name: Optional[str] = None
+
     class Config:
         orm_mode = True

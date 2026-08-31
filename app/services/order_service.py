@@ -330,10 +330,17 @@ class OrderService(BaseService[Order]):
             self.db.commit()
             raise ValueError(error_msg)
     
+        # Extract client name before the f-string to avoid nested f-string syntax
+        # error on Python <3.12 (backslashes not allowed inside f-string expressions)
+        if order.client.type == 'b2b':
+            client_display_name = order.client.company_name
+        else:
+            client_display_name = f"{order.client.first_name} {order.client.last_name}"
+
         # Préparer les notes avec informations client
         client_info = f"""
 Informations Client:
-- Nom: {order.client.company_name if order.client.type == 'b2b' else f"{order.client.first_name} {order.client.last_name}"}
+- Nom: {client_display_name}
 - Email: {order.client.email}
 - Téléphone: {order.client.phone or 'Non renseigné'}
 - Adresse: {order.client.address or 'Non renseignée'}
@@ -343,7 +350,7 @@ Adresse de livraison: {order.shipping_address or "Identique à l'adresse client"
 """
     
         if order.delivery_notes:
-            client_info += f"\nNotes de livraison: {order.delivery_notes}"
+            client_info += "\nNotes de livraison: " + order.delivery_notes
     
         document_service = DocumentService(self.db)
     
